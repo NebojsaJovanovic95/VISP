@@ -58,11 +58,18 @@ func GetAllFrames(cameraId int, modelName string, afterTS int, limit int, offset
 }
 
 func GetDetection(id int) string {
-	// ...
-	return "detection json"
+	// get the detection from the db using the id
+	// if the detection is None return a message with 404 status code
+	// log the fetched detection
+	// get the fram by id using the detection["frame_id"]
+	// get the image path from frame["image_path"]
+	// use a helper function (anonymus) imageStrean := (image_path string) {
+	// use use load image function from your MinioStorage object to loadImage(image_path) and then stream chunks
+	// }
+	return "streaming response with the image and the detection data"
 }
 
 func GetFrame(id int) string {
-	// ...
-	return "frame json"
+	// same as with the detection just use frame Id
+	return "stream responce with the image and detection data"
 }
