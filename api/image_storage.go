@@ -105,14 +105,6 @@ func NewMinIOStorage(
 	bucket string,
 ) (*MinIOStorage, error) {
 	client, err := minio.New(endpoint, accessKey, secretKey, false)
-	//		endpoint, &minio.Options{
-	//		Creds: credentials.NewStaticV4(
-	//			accessKey,``
-	//			secretKey,
-	//			"",
-	//		),
-	//		Secure: false,
-	//	})
 	if err != nil {
 		return nil, fmt.Errorf("create MinIO client: %w", err)
 	}
