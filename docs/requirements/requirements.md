@@ -1,4 +1,5 @@
 # VISP — System Requirements
+
 ## 1. Purpose
 
 This document defines the functional and non-functional requirements for the Vision Industrial Systems Platform (VISP).
@@ -155,21 +156,84 @@ The retry limit and retry interval may be configurable.
 
 VISP shall assign a unique identifier to each inference job and prevent duplicate processing results from being stored when the same job is received or processed more than once.
 
-**NFR-005** — Secure Credential Storage
+### 4.3 Security
+
+**NFR-005 — Secure Credential Storage**
 
 VISP shall encrypt camera connection credentials at rest.
+
 - RTSP usernames and passwords shall not be stored in plain text.
 - Encryption keys shall be supplied through environment configuration, not stored alongside encrypted credentials.
 - Credentials shall not be exposed in API responses, application logs or error messages.
 - Access to decrypted credentials shall be restricted to components that require them to establish camera connections.
 
-**NFR-006** — API Authentication
+**NFR-006 — API Authentication**
 
 VISP shall require authentication for access to protected API endpoints.
+
 - Unauthenticated requests shall be rejected.
 - The initial release shall support at least one administrator account.
 - Authentication credentials shall be stored securely.
 - Authenticated users shall be authorized according to their assigned permissions.
+
+**NFR-007 — API Transport Security**
+
+VISP shall support HTTPS for API communication to protect data and authentication credentials in transit.
+
+- Production deployments shall use HTTPS.
+- Local development environments may use HTTP.
+- The architecture shall support certificate configuration.
+
+### 4.4 Performance and Resource Management
+
+**NFR-008 — Inference Response Time**
+
+VISP shall target an inference response time of no more than 2 seconds under normal operating conditions, measured from frame submission to receipt of inference results.
+
+**NFR-009 — Resource Management**
+
+VISP shall monitor the resource utilization of its server and inference components, including:
+
+- CPU utilization
+- Memory utilization
+- GPU utilization and memory, where available
+
+The platform should expose sufficient information to identify resource constraints and processing bottlenecks.
+
+### 4.5 Operations and Maintainability
+
+**NFR-010 — Logging and Diagnostics**
+
+VISP shall maintain structured application logs to support troubleshooting and operational monitoring.
+
+Logs shall:
+
+- Include timestamps and severity levels.
+- Identify the component generating the log.
+- Record relevant errors and processing failures.
+- Avoid exposing sensitive information, including credentials.
+
+**NFR-011 — Linux Compatibility**
+
+VISP shall support deployment and execution on Linux systems.
+
+The initial release shall target Linux environments with the necessary hardware and software dependencies for video acquisition and inference.
+
+**NFR-012 — Automated Testing**
+
+VISP shall include automated tests to verify the correctness of its core functionality.
+
+Testing shall include:
+
+- Unit tests for individual components.
+- Integration tests for communication between server, inference and data services.
+- Tests for camera connectivity and reconnection.
+- Tests for inference job processing and failure handling.
+- Tests for data storage and retrieval.
+
+**NFR-013 — Maintainability**
+
+VISP shall use clearly defined component interfaces and modular software architecture to support independent development, testing and maintenance of its components.
 
 ## 5. Future Requirements
 
