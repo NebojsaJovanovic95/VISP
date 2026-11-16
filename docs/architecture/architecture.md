@@ -194,9 +194,11 @@ Proposed attributes:
 - `model_id` – Foreign key referencing Model.
 - `inference_schedule` – Defines when or how frequently inference is performed.
 - `saving_policy` – Defines the image and inference data retention or saving behaviour associated with the subscription.
-- `status` - determines whether the processing configuration is available for use.
+- `status` – Determines whether the processing configuration is available for use.
 
 A Subscription is independent of a particular Camera. This allows the same processing configuration to be reused across multiple cameras.
+
+Subscription records should be deactivated or retired rather than physically deleted when historical records reference them.
 
 #### 3.2.4. CameraSubscription
 
@@ -207,7 +209,7 @@ Proposed attributes:
 - `camera_subscription_id` – Primary key.
 - `camera_id` – Foreign key referencing Camera.
 - `subscription_id` – Foreign key referencing Subscription.
-- `status` – Current assignment status. Determines whether that particular camera is actively assigned to the subscription
+- `status` – Current assignment status. Determines whether that particular camera is actively assigned to the subscription.
 
 A Camera can have multiple subscriptions, and a Subscription can be assigned to multiple cameras.
 
@@ -268,7 +270,7 @@ The model and subscription snapshots are captured when the task is created and m
 
 The Model foreign key is retained to support relational queries and maintain referential integrity. The model snapshot independently preserves historical metadata.
 
-The CameraSubscription and Model foreign keys must use `ON DELETE RESTRICT` to prevent deletion of referenced configuration records.
+The CameraSubscription and Model foreign keys must use `ON DELETE RESTRICT` to prevent deletion of referenced configuration records. The Image foreign key must also protect historical task references.
 
 #### 3.3.3. InferenceResult
 
@@ -296,26 +298,33 @@ Retries, processing delays and other execution details may be recorded in result
 
 #### 3.3.4. Detection
 
-Represents an individual object identified during an inference operations.
+Represents an individual object identified during an inference operation.
 
 Proposed attributes:
 
-- `detection_id` - Primary key identifying the detection
-- `result_id` - Foreign key referencing InferenceResult
-- `class_id` - Model-defined class identifier
-- `class_name` - Human-readable object class
-- `confidence` - Confidence score assigned by the model
-- `bounding_box` - Coordinates describing the detection object's location in the image
+- `detection_id` – Primary key identifying the detection.
+- `result_id` – Foreign key referencing InferenceResult.
+- `class_id` – Model-defined class identifier.
+- `class_name` – Human-readable object class.
+- `confidence` – Confidence score assigned by the model.
+- `bounding_box` – Coordinates describing the detected object's location in the image.
 
-Each detection belongs to exactly one InferenceResult. An inference result can have zero or many detections.
+Each detection belongs to exactly one InferenceResult. An InferenceResult can have zero or many detections.
 
-Detections are stored as individual database records rather than embedded in a JSON field. This allows us to query detections independently by class, confidence, camera and time range
+Detections are stored as individual database records rather than embedded in a JSON field. This allows detections to be queried independently by class, confidence, camera and time range.
 
 `class_name` is stored alongside `class_id` so historical records remain understandable if a model's class definitions change.
 
 Bounding-box coordinates should use normalized values between 0 and 1, making them independent of the original image resolution.
 
-The image associated with a detection is resolved through its relationships: `Detection → InferenceResult → InferenceTask → Image`. We don't need a separate `image_id` in the Detection table.
+The image associated with a detection is resolved through its relationships:
+
+`Detection → InferenceResult → InferenceTask → Image`
+
+A separate `image_id` in the Detection table is unnecessary because the image can be determined through these relationships.
+
+The `result_id` foreign key must use `ON DELETE RESTRICT` to protect detections associated with historical inference results.
+
 
 ## 4. Deployment Architecture
 
