@@ -328,6 +328,7 @@ The `result_id` foreign key must use `ON DELETE RESTRICT` to protect detections 
 ### 3.4 Entity Relationships
 
 #### 3.4.1 Entity Relationship Diagram
+
 ```mermaid
 erDiagram
     CAMERA ||--o{ CAMERA_SUBSCRIPTION : has
@@ -343,6 +344,214 @@ erDiagram
     INFERENCE_RESULT ||--o{ DETECTION : contains
 ```
 
+#### 3.4.2. Relationship Descriptions
+
+- `Camera` – `Subscription`: A many-to-many relationship resolved through `CameraSubscription`.
+- `Model` – `Subscription`: A model can be referenced by multiple subscriptions.
+- `Image` – `InferenceTask`: An acquired image can be processed by multiple inference tasks, allowing multiple subscriptions to process the same frame without duplicating the image.
+- `CameraSubscription` – `InferenceTask`: Each task identifies the specific camera-subscription assignment that initiated processing.
+- `InferenceTask` – `InferenceResult`: Each task can produce at most one final result.
+- `InferenceResult` – `Detection`: Each result can contain zero or more detections.
+
+#### 3.4.3. Relationship Constraints
+
+1. A `CameraSubscription` must reference one existing `Camera` and one existing `Subscription`.
+2. A `CameraSubscription` combination of `camera_id` and `subscription_id` must be unique.
+3. An `InferenceTask` must reference one existing `Image`, `CameraSubscription` and `Model`.
+4. The `Model` referenced by an `InferenceTask` must match the `Model` configured by the `Subscription` associated with its `CameraSubscription` when the task is created.
+5. An `InferenceResult` must reference one existing `InferenceTask`.
+6. A `Detection` must reference one existing `InferenceResult`.
+
+### 3.5. Data Integrity and Retention
+
+#### 3.5.1. Referential Integrity
+
+VISP must preserve the relationships between configuration entities and historical operational records.
+
+Foreign-key relationships referencing historical records must use `ON DELETE RESTRICT` to prevent the physical deletion of records that are still referenced.
+
+The following relationships must be protected:
+
+- `Camera` → `Image`
+- `Image` → `InferenceTask`
+- `CameraSubscription` → `InferenceTask`
+- `Model` → `InferenceTask`
+- `InferenceTask` → `InferenceResult`
+- `InferenceResult` → `Detection`
+
+Configuration entities must also retain their relationships while referenced by other configuration records. For example, a `Subscription` must not be physically deleted while a `CameraSubscription` references it.
+
+The database must preserve referential integrity so that historical records cannot become detached from their associated configuration or operational records.
+
+#### 3.5.2. Configuration Lifecycle Management
+
+Configuration entities are intended to be long-lived records and should be deactivated, retired or decommissioned rather than physically deleted.
+
+This applies to:
+
+- `Camera`
+- `Model`
+- `Subscription`
+- `CameraSubscription`
+
+The status of each entity determines its availability for future platform operations.
+
+Subscription status determines whether a processing configuration is available for use, while CameraSubscription status determines whether a particular camera is actively assigned to that subscription.
+
+Deactivating or retiring a configuration entity must not affect historical inference tasks or results that reference it.
+
+Retiring a Subscription must prevent new inference tasks from being generated through its associated camera assignments. Existing CameraSubscription records and historical inference records must remain intact.
+
+#### 3.5.3. Historical Data Preservation
+
+Operational records must preserve the relevant configuration context that existed when the associated operation occurred.
+
+Snapshots are retained to prevent changes to current configuration records from altering the interpretation of historical data.
+
+The following snapshots are maintained:
+
+- `Image.camera_snapshot` – Preserves relevant camera metadata at the time of image capture.
+- `InferenceTask.subscription_snapshot` – Preserves the subscription configuration at the time the inference task was created.
+- `InferenceTask.model_snapshot` – Preserves model metadata at the time the inference task was created.
+
+Snapshots must be captured when their associated records are created and must not be reconstructed from current configuration records.
+
+Historical records should remain interpretable even when cameras, subscriptions or models are subsequently modified, deactivated or retired.
+
+#### 3.5.4. Data Retention and Archival
+
+VISP must support independent retention policies for operational metadata and the physical files associated with inference operations.
+
+The database records and physical image files are treated separately. An image file stored in MinIO may be archived or deleted while its corresponding Image database record remains available.
+
+Retention policies may apply independently to:
+
+- Image records and their associated metadata.
+- Physical image files stored in File Storage.
+- InferenceTask records.
+- InferenceResult records.
+- Detection records.
+
+For example, image files may be retained for a shorter period than inference metadata. This allows detection records and historical inference results to remain available even after the original image has expired.
+
+The `detection_count` stored in an InferenceResult represents the number of detections originally produced by inference. It must remain
+
+### 3.6 Data Retrieval
+
+#### 3.6.1. Inference Result Retrieval
+
+Inference results can be retrieved independently of their associated detection records.
+
+VISP supports two levels of result retrieval:
+
+1. **Standard retrieval** – Returns the `InferenceResult` metadata without loading its associated Detection records.
+
+```json
+{
+  "result_id": 1042,
+  "task_id": 582,
+  "status": "completed",
+  "completed_at": "2026-11-17T14:30:00Z",
+  "processing_duration": 0.42,
+  "detection_count": 3
+}
+```
+
+2. **Detailed retrieval** – Returns the same result metadata, along with its associated detections.
+
+```json
+{
+  "result_id": 1042,
+  "task_id": 582,
+  "status": "completed",
+  "completed_at": "2026-11-17T14:30:00Z",
+  "processing_duration": 0.42,
+  "detection_count": 3,
+  "detections": [
+    {
+      "detection_id": 1,
+      "class_id": 0,
+      "class_name": "person",
+      "confidence": 0.96,
+      "bounding_box": [0.12, 0.18, 0.35, 0.82]
+    }
+  ]
+}
+```
+
+Detection records are stored independently in the database and assembled into a collection when detailed results are requested. This avoids duplicating detection data within the InferenceResult record and allows clients to retrieve only the information they require.
+
+The `detection_count` attribute provides the number of detections originally produced during inference without requiring the associated Detection records to be retrieved. Consequently, the number of detections included in a detailed response may differ from `detection_count` if individual Detection records have been removed under a retention policy.
+
+This approach supports both lightweight result queries and detailed inspection of individual inference results.
+
+#### 3.6.2. Detection Queries
+
+Detection records can be queried independently of their associated InferenceResult records.
+
+VISP supports filtering detections using the following criteria:
+
+- **Camera** – Retrieve detections originating from a particular camera.
+- **Time Range** – Retrieve detections based on the image capture timestamp.
+- **Object Class** – Filter detections by their identified class.
+- **Confidence** – Filter detections using a minimum confidence threshold.
+
+These criteria can be combined to support more specific queries. For example, retrieving all person detections from a particular camera within a specified time range and above a defined confidence threshold.
+
+Detection queries use the existing relationships between Detection, InferenceResult, InferenceTask and Image to resolve the associated camera and image capture timestamp.
+
+The `captured_at` attribute of the Image record is used as the time reference for detection queries. This represents when the image was acquired, rather than when inference processing was completed.
+
+This avoids duplicating camera and timestamp information in the Detection table while allowing detections to be searched across the platform.
+
+#### 3.6.3. Image Retrieval
+
+Images associated with inference results and detections are retrieved through their existing database relationships.
+
+To retrieve images associated with detection queries, VISP follows the relationships between Detection, InferenceResult, InferenceTask and Image to identify the corresponding Image records.
+
+The retrieval process consists of:
+
+1. Retrieve Detection records matching the requested query criteria.
+2. Identify their associated InferenceResult and InferenceTask records.
+3. Resolve the corresponding Image records.
+4. Retrieve the physical image files from File Storage (MinIO) using their `image_reference`.
+5. Associate the retrieved images with their corresponding inference results and detections.
+
+Multiple detections or inference tasks may reference the same Image. VISP should identify unique Image records and retrieve each corresponding physical image only once per request.
+
+When presenting detections alongside their associated images, applications can use the stored bounding-box coordinates to overlay detected objects on the original image.
+
+Image retrieval must also account for retention policies. An Image database record may remain available after its associated physical file has been archived or deleted. In such cases, VISP must be able to identify that the original image is no longer available.
+
 ## 4. Deployment Architecture
 
-To be defined.
+### 4.1 Deployment Overview
+
+VISP is designed to support both single-machine and distributed deployments.
+
+The initial deployment will run all platform components on a single Linux machine. This provides a straightforward environment for development, testing, and initial operation.
+
+The architecture allows individual components to be deployed independently across multiple machines as deployment requirements evolve. This includes running Camera Acquisition on a separate machine with network access to the registered cameras and VISP Server, as well as distributing VISP Server instances and Inference Engines across multiple machines.
+
+The deployment model is intended to provide flexibility and independent scalability without requiring a distributed deployment in the initial release.
+
+### 4.2 Deployment Components
+
+#### 4.2.1 Camera Acquisition
+
+Camera Acquisition is an independently deployable component that maintains connections to registered cameras, acquires video frames, and submits them to the VISP Server.
+
+For the initial release, a single Camera Acquisition instance will manage the registered cameras. The architecture should allow multiple independent Camera Acquisition instances to be deployed in the future, with each instance managing a separate group of cameras.
+
+Centralized management and coordination of multiple Camera Acquisition instances is outside the scope of the initial release.
+
+#### 4.2.2 VISP Server
+
+The VISP Server is independently deployable and communicates with the Database, File Storage, and Messaging System to coordinate platform operations.
+
+For the initial release, a single VISP Server instance will handle incoming requests and platform operations.
+
+The architecture should support multiple identical VISP Server instances running concurrently. A load balancer can distribute incoming requests across available instances, allowing the platform to scale horizontally as demand increases.
+
+Each instance should be capable of handling requests independently without relying on instance-specific application state. Shared platform data and operational state are maintained through the centralized Database and File Storage.
