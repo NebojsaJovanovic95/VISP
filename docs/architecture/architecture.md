@@ -654,6 +654,74 @@ Camera Acquisition periodically requests its camera configuration from the VISP 
 
 Camera Acquisition submits acquired frames to the VISP Server along with the camera identifier and associated capture metadata.
 
-Camera Acquisition also reports heartbeat information to the VISP Server, allowing the platform to monitor the health of the acquisition component independently of individual camera connectivity.
+Camera Acquisition reports its component health through a periodic heartbeat interface. This allows the VISP Server to monitor the availability of the acquisition instance independently of individual camera connectivity.
+
+Individual camera connectivity and acquisition status are reported through a separate camera status interface. This allows the VISP Server to monitor the operational state of each camera independently of the acquisition component.
 
 The VISP Server remains responsible for resolving active subscriptions and determining the inference processing required for each submitted frame.
+
+### 5.3 VISP Server ↔ Messaging System
+
+Communication between the VISP Server and Messaging System is asynchronous.
+
+The VISP Server submits inference jobs to the Messaging System after determining the subscriptions and models applicable to an acquired frame.
+
+Each submitted job includes a unique task identifier, the required model reference, and the input image reference and associated metadata.
+
+The Messaging System makes submitted jobs available to compatible Inference Engines and retains pending jobs until they can be processed.
+
+Inference Engines retrieve the required images directly from File Storage using the references provided in their jobs.
+
+Upon completion, Inference Engines return their results through the Messaging System. The VISP Server consumes these results and manages the corresponding task lifecycle and persistence.
+
+The Messaging System is responsible for transporting jobs and results, while the VISP Server remains responsible for orchestration, task management, and failure handling.
+
+### 5.4 Messaging System ↔ Inference Engine
+
+Communication between the Messaging System and Inference Engines is asynchronous.
+
+Inference Engines consume available inference jobs from the Messaging System. Each job contains a unique task identifier, the required model reference, and the input image reference and associated metadata.
+
+The Inference Engine retrieves the input image directly from File Storage and executes the specified model using its available processing resources.
+
+Upon completion, the Inference Engine publishes the inference result to the Messaging System for retrieval by the VISP Server.
+
+Inference Engines report their health and operational status to the platform, allowing their availability and processing activity to be monitored.
+
+The Messaging System distributes jobs to compatible Inference Engines and manages message delivery independently of the inference execution process.
+
+The Inference Engine reports the outcome of each inference job, including successful completion or processing failure. The VISP Server remains responsible for managing task state, retry policies, and final task outcomes.
+
+### 5.5 VISP Server ↔ Database
+
+The VISP Server is the exclusive component responsible for accessing the Database.
+
+All database operations are performed through the VISP Server, including configuration management, operational status updates, inference task management, result persistence, and historical data retrieval.
+
+Other platform components do not access the Database directly. They communicate with the VISP Server through their defined interfaces, ensuring that database operations and data integrity remain centrally managed.
+
+The Database is independently deployable and accessible to authorized VISP Server instances over the network.
+
+### 5.6 VISP Server ↔ File Storage
+
+The VISP Server is responsible for managing image and file storage operations.
+
+When Camera Acquisition submits an image, the VISP Server stores the image in File Storage and records its storage reference and associated metadata in the Database.
+
+The VISP Server retrieves stored images when responding to requests for historical inference data and associated images.
+
+Inference Engines are granted read-only access to File Storage to retrieve input images required for inference jobs. They do not have direct access to the Database or permission to modify or delete stored files.
+
+The VISP Server remains responsible for managing file availability, retention, and archival in accordance with platform policies.
+
+### 5.7 External API
+
+The VISP Server provides an API as the primary interface for external clients and applications to interact with the VISP platform.
+
+The API provides access to platform management and data operations, including camera management, model and subscription management, camera-subscription assignments, component status, and historical inference data.
+
+External clients do not access the Database, Messaging System, or File Storage directly. All platform operations are handled through the VISP Server, which coordinates access to the underlying services.
+
+The API is designed to support integration with external applications and future development of platform interfaces, including a web dashboard.
+
+The initial external API will use REST over HTTP/HTTPS. This provides a standardized interface for platform management and data retrieval while supporting integration with external applications.
