@@ -84,7 +84,7 @@ Responsibilities:
 
 Stores images and other files associated with inference results.
 
-The initial implementation will use object storage through S3-compatible file storage solution.
+The initial implementation will use object storage through S3-compatible object storage solution.
 
 Responsibilities:
 - Store images associated with inference results.
@@ -452,7 +452,7 @@ Historical records should remain interpretable even when cameras, subscriptions 
 
 VISP must support independent retention policies for operational metadata and the physical files associated with inference operations.
 
-The database records and physical image files are treated separately. An image file stored in S3-compatible file storage solution may be archived or deleted while its corresponding Image database record remains available.
+The database records and physical image files are treated separately. An image file stored in S3-compatible object storage solution may be archived or deleted while its corresponding Image database record remains available.
 
 Retention policies may apply independently to:
 
@@ -678,7 +678,7 @@ Each interface defines the information exchanged and the responsibilities of the
 
 ### 5.2 Camera Acquisition ↔ VISP Server
 
-Communication between Camera Acquisition and the VISP Server is synchronous.
+Communication between Camera Acquisition and the VISP Server is synchronous. Two separate reporting interfaces are used, heartbeat and camera-status reporting.
 
 Camera Acquisition periodically requests its camera configuration from the VISP Server. The configuration includes the registered cameras and the information required to establish and maintain their connections.
 
