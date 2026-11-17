@@ -325,6 +325,23 @@ A separate `image_id` in the Detection table is unnecessary because the image ca
 
 The `result_id` foreign key must use `ON DELETE RESTRICT` to protect detections associated with historical inference results.
 
+### 3.4 Entity Relationships
+
+#### 3.4.1 Entity Relationship Diagram
+```mermaid
+erDiagram
+    CAMERA ||--o{ CAMERA_SUBSCRIPTION : has
+    SUBSCRIPTION ||--o{ CAMERA_SUBSCRIPTION : assigned_to
+    MODEL ||--o{ SUBSCRIPTION : configures
+
+    CAMERA ||--o{ IMAGE : captures
+    IMAGE ||--o{ INFERENCE_TASK : processed_by
+    CAMERA_SUBSCRIPTION ||--o{ INFERENCE_TASK : initiates
+    MODEL ||--o{ INFERENCE_TASK : executes
+
+    INFERENCE_TASK ||--o| INFERENCE_RESULT : produces
+    INFERENCE_RESULT ||--o{ DETECTION : contains
+```
 
 ## 4. Deployment Architecture
 
