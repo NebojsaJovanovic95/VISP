@@ -555,3 +555,105 @@ For the initial release, a single VISP Server instance will handle incoming requ
 The architecture should support multiple identical VISP Server instances running concurrently. A load balancer can distribute incoming requests across available instances, allowing the platform to scale horizontally as demand increases.
 
 Each instance should be capable of handling requests independently without relying on instance-specific application state. Shared platform data and operational state are maintained through the centralized Database and File Storage.
+
+#### 4.2.3 Messaging System
+
+The Messaging System provides asynchronous communication between the VISP Server and Inference Engines.
+
+For the initial release, a single Messaging System deployment will serve the platform components.
+
+The architecture should allow the Messaging System to support increasing message volumes and multiple Inference Engine instances as platform demand grows.
+
+The Messaging System is a shared service used by VISP Server instances and Inference Engines. It should be independently deployable from these components.
+
+#### 4.2.4 Inference Engine
+
+The Inference Engine is independently deployable and consumes inference jobs from the Messaging System.
+
+For the initial release, a single Inference Engine instance will process inference jobs.
+
+The architecture should support multiple Inference Engine instances running concurrently. Additional instances can be deployed to increase inference processing capacity independently of the VISP Server.
+
+Inference Engines may run on separate machines equipped with suitable CPU or GPU resources. The Messaging System distributes available inference jobs to compatible engines.
+
+#### 4.2.5 Database
+
+The Database stores VISP configuration, registry information, operational state, and historical inference metadata.
+
+For the initial release, a single Database deployment will serve all VISP components.
+
+The Database is independently deployable and accessible to authorized platform components over the network. All VISP Server instances share the same logical database, ensuring consistent access to platform data.
+
+Database replication, clustering, and other high-availability or scaling mechanisms may be introduced in the future as operational requirements evolve.
+
+#### 4.2.6 File Storage
+
+File Storage stores images and other files associated with inference results.
+
+For the initial release, a single File Storage deployment will serve the platform. The storage service is independently deployable and accessible to authorized platform components over the network.
+
+All VISP Server instances access the same logical File Storage service, allowing them to retrieve and store files regardless of which instance handles a request.
+
+Storage capacity and availability can be expanded in the future through additional storage resources or appropriate scaling mechanisms.
+
+### 4.3 Deployment Configurations
+
+#### 4.3.1 Initial Single-Machine Deployment
+
+The initial VISP deployment will run all platform components on a single Linux machine.
+
+The deployment includes Camera Acquisition, VISP Server, Messaging System, Inference Engine, Database, and File Storage.
+
+Network cameras connect to the machine over the local network using RTSP. Platform components communicate through their defined interfaces, maintaining the separation of responsibilities established in the logical architecture.
+
+This configuration provides a straightforward environment for initial development, testing, and operation while preserving the ability to distribute components across multiple machines in the future.
+
+Each platform component will run as a separate process, maintaining independent execution and lifecycle management even when sharing the same host.
+
+#### 4.3.2 Distributed Deployment
+
+VISP components can be deployed across multiple machines according to network topology, processing requirements, and available resources.
+
+Camera Acquisition can run on machines with access to the registered cameras and VISP Server. Multiple instances may manage separate groups of cameras as deployment requirements grow.
+
+VISP Server instances can run across multiple machines, with incoming requests distributed through a load balancer.
+
+Inference Engines can run on separate machines equipped with suitable processing resources. Additional instances can be deployed independently to increase inference capacity.
+
+The Messaging System, Database, and File Storage provide shared services accessible to the distributed components.
+
+### 4.4 Scalability and Distribution
+
+VISP is designed to allow individual components to scale independently according to platform demand.
+
+- **Camera Acquisition:** Multiple instances can be deployed to manage separate groups of cameras.
+- **VISP Server:** Multiple interchangeable instances can handle incoming requests, with a load balancer distributing traffic.
+- **Inference Engine:** Additional instances can be deployed independently to increase inference processing capacity.
+- **Messaging System:** Must support increasing message volumes and communication with multiple Inference Engine instances.
+- **Database and File Storage:** Initially operate as logically centralized services. Replication, clustering, and other scaling mechanisms may be introduced as requirements evolve.
+
+The initial implementation will prioritize a straightforward single-machine deployment while preserving the architectural flexibility to distribute and scale components independently.
+
+## 5. Interface Architecture
+
+### 5.1 Interface Overview
+
+VISP components communicate through defined interfaces that establish clear boundaries between their responsibilities.
+
+Communication interfaces are designed to support independent component execution and deployment, whether components run on the same machine or across multiple machines.
+
+The architecture uses synchronous communication where an immediate response is required and asynchronous messaging for operations that can be processed independently.
+
+Each interface defines the information exchanged and the responsibilities of the communicating components. Implementation details and specific communication technologies will be established during development.
+
+### 5.2 Camera Acquisition ↔ VISP Server
+
+Communication between Camera Acquisition and the VISP Server is synchronous.
+
+Camera Acquisition periodically requests its camera configuration from the VISP Server. The configuration includes the registered cameras and the information required to establish and maintain their connections.
+
+Camera Acquisition submits acquired frames to the VISP Server along with the camera identifier and associated capture metadata.
+
+Camera Acquisition also reports heartbeat information to the VISP Server, allowing the platform to monitor the health of the acquisition component independently of individual camera connectivity.
+
+The VISP Server remains responsible for resolving active subscriptions and determining the inference processing required for each submitted frame.
