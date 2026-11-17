@@ -1,71 +1,57 @@
 # VISP
-**Vision Industrial Support Platform**
+**Vision Industrial Systems Platform**
 
-## Purpose / Vision
-Providing a Platform for real-time video analytics on the edge device. VISP will manage Cameras, Models, Data collection and analytics in order to provide a platform for implementing Industrial Vision Solutions.
+## Overview
 
-### Proposed Example Projects
-Platform Platform Platform, but what do I need this for?
-- PPE Compliance - are you wearing you hardhat and your high visibility clothes
-- Area Access Control - are there personnels here and how many
-- Wildlife Monitoring - did a Coyote find a cozy bed in your crusher
+VISP is a platform for developing and deploying industrial computer vision solutions on edge infrastructure.
 
-Implementing these would showcase what the platform can do for the client. Further use cases can be developed for this client. This will be the vector of developing platform capabilities.
+The platform provides reusable infrastructure for video acquisition, model inference, data management, and analytics. Its purpose is to simplify the development of industrial vision applications without requiring each application to implement its own underlying infrastructure.
 
-## Timing / Strategic Value - Why Bother?
-### Why Edge
-Use of the cloud is very popular and has many applications. Edge computing fits industrial projects because they have space, and compared to instrumentation regularly used on site, a linux based edge device is laughable. If a control loop were to use VISP, keeping things on premise is preferred. Detection data could be uploaded to the cloud for advanced diagnostics, or for specialized model training, but otherwise a heartbeat with a summary would be sent up.
-### Why Computer Vision
-This comes with an assumption that cameras would be everywhere on site. Surprisingly they aren't that common. But they should be everywhere. Besides the obvious security applications, cameras empowered by vision models could give direct process insight (fluid level, feed size, bubble size, ...). It could alert the operator of an event like undesired material on the belt, or frothing pattern change in a flotation cell. Easily missed even when starring at the live video feed.
+VISP is designed primarily for on-premises Linux environments, with the ability to distribute platform components across multiple machines as deployment requirements evolve.
 
-## VISP Architecture
+## Vision and Objectives
 
-```mermaid
-flowchart TB
-    subgraph Streaming_Apps[streaming app replicas]
-        cameras["one instance per camera"]
-    end
+Industrial environments can benefit from computer vision in applications ranging from safety compliance to process monitoring.
 
-    subgraph Redis
-        direction TB
-        STREAM[streaming requests]
-        MODEL_REQUESTS[model requests]
-        MODEL_RESULTS[model results]
-        STORAGE_BUFFER[storage buffering]
-    end
+VISP aims to provide a common platform through which these applications can be developed, deployed, and managed.
 
-    subgraph YOLOv8_Server["Yolov8 Server (replicas)"]
-        FAST_API["request routing instance"]
-        %% DetectionDB bellow FAST_API
-        direction TB
-        subgraph DetectionDB
-            CACHE[sqllite for caching]
-            PG_CLIENT[postgres connection]
-        end
-    end
+### Example Applications
 
-    subgraph YOLOv8_MODEL
-        GPU[yolo model runs on gpu with cuda]
-    end
+- **PPE Compliance:** Detecting whether personnel are wearing required personal protective equipment.
+- **Restricted-Area Monitoring:** Detecting personnel or other objects entering designated areas.
+- **Wildlife Monitoring:** Detecting wildlife around industrial facilities.
+- **Process Monitoring:** Extracting visual information such as material size, fluid levels, or flotation conditions.
 
+These applications demonstrate potential uses of the platform and provide opportunities to expand its capabilities.
 
-    subgraph Postgres
-        PG[postgres]
-    end
+## Architecture
 
-    subgraph MinIO [Minio Object Storage]
-        M[minio]
-    end
+VISP separates video acquisition, platform coordination, inference processing, messaging, structured data storage, and file storage into distinct components.
 
-    Streaming_Apps --> STREAM
-    STREAM --> FAST_API
-    FAST_API <--> MODEL_REQUESTS
-    FAST_API <--> DetectionDB
-    MODEL_REQUESTS --> GPU
-    GPU --> MODEL_RESULTS
-    MODEL_RESULTS --> FAST_API
-    DetectionDB <--> STORAGE_BUFFER
-    STORAGE_BUFFER <--> PG
-    STORAGE_BUFFER <--> M
-```
+This separation allows components to operate independently and scale according to their respective workloads.
 
+Refer to [Software Architecture](docs/architecture/architecture.md) for the detailed architecture and design decisions.
+
+## Technology Stack
+
+The initial implementation uses:
+
+- **Go:** Core platform components.
+- **Python:** Initial inference engine.
+- **PostgreSQL:** Structured data storage.
+- **RabbitMQ:** Asynchronous messaging.
+- **S3-compatible object storage:** Image and file storage.
+- **RTSP:** Network camera video acquisition.
+- **Linux:** Deployment environment.
+- **Docker / Podman:** Containerized deployment.
+
+## Project Status
+
+VISP is under active development. The current focus is establishing the Go project foundation and implementing the platform incrementally according to the documented architecture and milestones.
+
+## Documentation
+
+- [Project Charter](docs/project/project-charter.md)
+- [Requirements](docs/requirements/requirements.md)
+- [Software Architecture](docs/architecture/architecture.md)
+- [Implementation Milestones](docs/project/milestones.md)
