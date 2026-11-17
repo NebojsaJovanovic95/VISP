@@ -725,3 +725,79 @@ External clients do not access the Database, Messaging System, or File Storage d
 The API is designed to support integration with external applications and future development of platform interfaces, including a web dashboard.
 
 The initial external API will use REST over HTTP/HTTPS. This provides a standardized interface for platform management and data retrieval while supporting integration with external applications.
+
+## 6. Technology Stack
+
+### 6.1 Technology Stack Overview
+
+VISP uses a modular technology stack that supports independent component development, deployment, and scaling.
+
+Technology selections prioritize reliability, maintainability, performance, and compatibility with Linux-based environments.
+
+The initial technology stack will focus on supporting the core platform capabilities while allowing individual technologies to be replaced or extended as requirements evolve.
+
+### 6.2 Programming Languages
+
+Go is the primary programming language for VISP platform development, including Camera Acquisition, VISP Server, and supporting platform services.
+
+Python will be used for the initial Inference Engine implementation, leveraging its established computer vision and machine learning ecosystem.
+
+The separation between platform services and inference execution allows components to be implemented in different programming languages, provided they adhere to their defined communication interfaces.
+
+### 6.3 Database
+
+PostgreSQL will be used as the relational database management system for VISP.
+
+It will store platform configuration, registry information, operational state, inference task metadata, results, and detection records.
+
+PostgreSQL provides relational integrity, transaction support, and JSONB capabilities required by the VISP data architecture.
+
+The database will be independently deployable and accessible to authorized VISP Server instances.
+
+### 6.4 Messaging System
+
+RabbitMQ will be used as the messaging system for asynchronous communication between the VISP Server and Inference Engines.
+
+It will facilitate the distribution of inference jobs to available workers and the delivery of inference results back to the VISP Server.
+
+RabbitMQ will provide message acknowledgement, delivery reliability, and support for multiple concurrent consumers.
+
+The VISP Server remains responsible for inference task lifecycle management, including retry policies, failure handling, and final task status.
+
+### 6.5 File Storage
+
+VISP will use an S3-compatible object storage interface for storing images and other files associated with inference operations.
+
+The storage solution must support self-hosted, on-premises deployments without requiring a dependency on a specific cloud provider.
+
+The architecture will also support cloud-hosted object storage where required by a deployment.
+
+The VISP Server will manage image uploads, retrieval, retention, and archival. Inference Engines will have read-only access to retrieve images using references provided in inference jobs.
+
+The database will store object references and associated metadata rather than image contents.
+
+Storage implementations will be replaceable without requiring changes to the core VISP data architecture or component interfaces.
+
+### 6.6 Camera Acquisition and Video Processing
+
+Camera Acquisition will use RTSP as the primary protocol for connecting to network cameras and receiving video streams.
+
+The Go-based Camera Acquisition component will use **gortsplib** as its RTSP client library.
+
+Video acquisition and frame extraction will be organized into separate responsibilities:
+
+- **RTSP Client:** Establishes and maintains connections to network cameras and receives their video streams.
+- **Video Decoder:** Decodes the received video stream into individual image frames.
+- **Frame Acquisition:** Extracts frames according to the configured acquisition interval and submits them to the VISP Server with the associated camera identifier and capture metadata.
+
+The acquisition interval is configured independently for each camera. It determines how frequently frames are extracted from the incoming stream and is independent of the inference schedules configured through Subscriptions.
+
+The initial implementation will use manually configured acquisition intervals. Future versions may allow VISP to calculate and adjust these intervals automatically based on the requirements of active subscriptions.
+
+The VISP Server is responsible for inference scheduling and selecting eligible images for processing. Camera Acquisition does not manage subscriptions or determine which models should be executed.
+
+The specific video decoding implementation will be evaluated during development. The RTSP library selection does not prescribe a particular decoding implementation.
+
+RTSP will be the primary acquisition method for the initial release. Support for camera-provided image snapshots may be evaluated as an alternative acquisition method in the future.
+
+The separation between stream reception, frame decoding, and frame acquisition also provides flexibility for future video-processing capabilities without requiring changes to the core camera connection responsibilities.
