@@ -834,3 +834,47 @@ The specific video decoding implementation will be evaluated during development.
 RTSP will be the primary acquisition method for the initial release. Support for camera-provided image snapshots may be evaluated as an alternative acquisition method in the future.
 
 The separation between stream reception, frame decoding, and frame acquisition also provides flexibility for future video-processing capabilities without requiring changes to the core camera connection responsibilities.
+
+### 6.7 API and Communication
+
+VISP will use HTTP-based communication for synchronous interactions between platform components and external clients.
+
+The VISP Server will expose a REST API as the primary interface for external applications, administrators, and other authorized clients.
+
+The API will support platform management operations, status reporting, and retrieval of historical inference data and associated images.
+
+HTTP will be used for local development environments, while HTTPS will be used for production deployments to secure communication between clients and the VISP Server.
+
+Internal communication between Camera Acquisition and the VISP Server will use HTTP-based interfaces for configuration retrieval, frame submission, and operational status reporting.
+
+Asynchronous communication between the VISP Server and Inference Engines will use RabbitMQ, as described in Section 6.4.
+
+Communication protocols and interfaces will remain independent of the physical deployment topology, allowing components to communicate whether deployed on the same machine or across multiple machines.
+
+Inference Engines will retrieve input images directly from File Storage using the object references provided in inference jobs. This communication will use the storage API synchronously and does not require the Messaging System.
+
+### 6.8 Deployment and Containerization
+
+VISP will target Linux-based deployment environments.
+
+Platform components will be packaged as independent containers to support consistent deployment, isolation, and lifecycle management.
+
+Container images will follow OCI-compatible standards, allowing VISP components to run using compatible container runtimes such as Docker and Podman.
+
+The initial deployment will support running all platform components on a single machine using a Compose-compatible deployment configuration.
+
+The deployment architecture will allow individual components to be deployed independently across multiple machines as platform requirements evolve.
+
+Container orchestration platforms such as Kubernetes may be evaluated for future distributed deployments. Kubernetes is not a requirement for the initial release.
+
+### 6.9 Development and Testing Tools
+
+VISP development will use Git for version control and source code management.
+
+Automated testing will be incorporated throughout development, including unit tests, integration tests, and component-level testing.
+
+The Go components will use the Go testing framework and associated tooling. The Python-based Inference Engine will use Python-compatible testing tools.
+
+Development and testing environments will support containerized execution to maintain consistency between development and deployment environments.
+
+Continuous Integration (CI) may be introduced to automate testing, code validation, and build processes as the project matures.
