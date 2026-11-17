@@ -18,6 +18,11 @@ Responsibilities:
 
 Camera Acquisition does not determine which inference models or inference engines process a frame.
 
+Camera Acquisition manages camera connections and frame acquisition independently of inference subscriptions. It receives and decodes video streams, extracts frames according to a configured per-camera acquisition interval, and submits those frames to the VISP Server.
+
+The acquisition process does not determine which subscriptions require inference or which models should be executed. Those responsibilities belong to the VISP Server.
+
+
 ### 1.2. VISP Server
 
 Coordinates platform operations, manages requests, and provides access to platform services.
@@ -35,6 +40,10 @@ Responsibilities:
 - Provide access to historical inference data and associated images.
 
 The VISP Server handles orchestration and management operations independently of the computational workload performed by Inference Engines.
+
+The VISP Server manages inference scheduling independently of image acquisition. It evaluates active CameraSubscription schedules, selects eligible images, and creates inference tasks when the applicable conditions are met.
+
+Image eligibility is determined using the maximum acceptable image age configured by the associated Subscription. The Server also prevents the same image from being processed more than once by the same CameraSubscription assignment.
 
 ### 1.3. Inference Engine
 
@@ -93,16 +102,23 @@ The Database stores references to stored objects rather than the actual image da
 
 ## 2. Component Interaction
 
-### 2.1. Real-time Inference
+#### 2.1 Real-Time Inference Flow
 
-1. Camera Acquisition periodically retrieves camera and subscription configuration from the VISP Server.
-2. Camera Acquisition acquires a frame from a registered camera.
-3. The frame is submitted to the VISP Server along with its camera identifier.
-4. The VISP Server determines which subscriptions and inference models apply.
-5. The VISP Server creates and submits the appropriate inference jobs to the Messaging System.
-6. An available Inference Engine consumes the job and executes the required model.
-7. The inference result is returned through the Messaging System.
-8. The VISP Server processes the result and coordinates its storage and availability to applications.
+1. Camera Acquisition retrieves camera configuration from the VISP Server, including connection information and the configured image acquisition interval.
+2. Camera Acquisition establishes and maintains an RTSP connection to each registered camera.
+3. The video stream is received and decoded into individual frames.
+4. Camera Acquisition extracts frames according to the configured acquisition interval and submits them to the VISP Server with the camera identifier and capture metadata.
+5. The VISP Server stores the received image and its associated metadata.
+6. The VISP Server evaluates the inference schedules of active CameraSubscription assignments associated with the camera.
+7. When a subscription is due, the VISP Server identifies the latest available image and checks whether it meets the subscription's maximum acceptable image age.
+8. If the image is eligible and has not already been processed by that CameraSubscription, the VISP Server creates an InferenceTask.
+9. The VISP Server submits the inference job to the Messaging System, including the task identifier, model reference, image reference, and associated metadata.
+10. An Inference Engine consumes the job, retrieves the image from File Storage, and executes the specified model.
+11. The Inference Engine publishes the inference result through the Messaging System.
+12. The VISP Server consumes the result, updates the task lifecycle, and coordinates the persistence of the result and associated detections.
+13. The result and associated data become available through the VISP Server for retrieval by external applications.
+
+If no eligible image is available when a subscription becomes due, the VISP Server waits for a newer image rather than submitting an image that exceeds the subscription's maximum acceptable age or reusing an image already processed by that assignment.
 
 A single acquired frame may generate multiple inference jobs when multiple subscriptions require different models or processing tasks.
 
@@ -168,6 +184,10 @@ Additional camera configuration may include manufacturer, model, mounting positi
 
 Camera configuration can change throughout its lifecycle. Cameras should be decommissioned or disabled rather than physically deleted when historical records reference them.
 
+The acquisition interval is a camera-level configuration and is independent of inference schedules. It determines how frequently Camera Acquisition extracts images from the camera stream.
+
+Initially, this interval is configured manually. Future versions may allow the VISP Server to calculate and adjust acquisition intervals automatically based on the requirements of active subscriptions.
+
 #### 3.2.2. Model
 
 Represents a registered computer vision model.
@@ -199,6 +219,10 @@ Proposed attributes:
 A Subscription is independent of a particular Camera. This allows the same processing configuration to be reused across multiple cameras.
 
 Subscription records should be deactivated or retired rather than physically deleted when historical records reference them.
+
+The inference schedule determines when a Subscription requires an image to be processed. The maximum image age determines how old that image is allowed to be when selected.
+
+These settings are independent of the camera's acquisition interval. A Subscription may use the latest available image if it satisfies the maximum image age requirement.
 
 #### 3.2.4. CameraSubscription
 
@@ -245,6 +269,10 @@ The Camera foreign key must use `ON DELETE RESTRICT` to prevent deletion of a ca
 
 The Image database record and the physical image file are treated separately. The physical file may eventually be archived or deleted according to retention policies while the Image record remains available as historical metadata.
 
+Images are acquired independently of inference tasks. An acquired image may be used by multiple InferenceTasks associated with different CameraSubscription assignments.
+
+The capture timestamp is used to determine image age when evaluating whether an image is eligible for inference processing.
+
 #### 3.3.2. InferenceTask
 
 Represents an individual request to process an image using a particular CameraSubscription.
@@ -271,6 +299,10 @@ The model and subscription snapshots are captured when the task is created and m
 The Model foreign key is retained to support relational queries and maintain referential integrity. The model snapshot independently preserves historical metadata.
 
 The CameraSubscription and Model foreign keys must use `ON DELETE RESTRICT` to prevent deletion of referenced configuration records. The Image foreign key must also protect historical task references.
+
+For a given CameraSubscription assignment, an image must not generate duplicate InferenceTasks. The VISP Server must enforce this constraint when creating tasks.
+
+The same Image may nevertheless be referenced by multiple InferenceTasks when different CameraSubscription assignments require processing.
 
 #### 3.3.3. InferenceResult
 
@@ -361,6 +393,7 @@ erDiagram
 4. The `Model` referenced by an `InferenceTask` must match the `Model` configured by the `Subscription` associated with its `CameraSubscription` when the task is created.
 5. An `InferenceResult` must reference one existing `InferenceTask`.
 6. A `Detection` must reference one existing `InferenceResult`.
+7. An Image may be processed by multiple CameraSubscription assignments, but the same Image must not generate more than one InferenceTask for the same CameraSubscription assignment.
 
 ### 3.5. Data Integrity and Retention
 
