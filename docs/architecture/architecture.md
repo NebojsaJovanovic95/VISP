@@ -11,17 +11,14 @@ Maintains connections to registered network cameras and acquires video frames.
 Responsibilities:
 - Maintain connections to registered RTSP cameras.
 - Monitor camera connectivity and acquisition status.
-- Periodically retrieve camera and subscription configuration from the VISP Server.
+- Periodically retrieve camera configuration from the VISP Server.
 - Acquire frames according to the configured acquisition interval.
 - Submit acquired frames to the VISP Server for processing.
 - Report component health and camera acquisition status through heartbeats.
 
-Camera Acquisition does not determine which inference models or inference engines process a frame.
-
 Camera Acquisition manages camera connections and frame acquisition independently of inference subscriptions. It receives and decodes video streams, extracts frames according to a configured per-camera acquisition interval, and submits those frames to the VISP Server.
 
 The acquisition process does not determine which subscriptions require inference or which models should be executed. Those responsibilities belong to the VISP Server.
-
 
 ### 1.2. VISP Server
 
@@ -38,8 +35,6 @@ Responsibilities:
 - Coordinate the persistence of inference metadata and associated images.
 - Manage component health and operational status.
 - Provide access to historical inference data and associated images.
-
-The VISP Server handles orchestration and management operations independently of the computational workload performed by Inference Engines.
 
 The VISP Server manages inference scheduling independently of image acquisition. It evaluates active CameraSubscription schedules, selects eligible images, and creates inference tasks when the applicable conditions are met.
 
@@ -89,7 +84,7 @@ Responsibilities:
 
 Stores images and other files associated with inference results.
 
-The initial implementation will use object storage through MinIO.
+The initial implementation will use object storage through S3-compatible file storage solution.
 
 Responsibilities:
 - Store images associated with inference results.
@@ -179,6 +174,7 @@ Proposed attributes:
 - `rtsp_url` – Camera connection address.
 - `location` – Physical installation location.
 - `status` – Current camera status.
+- `acquisition_interval` – Configured interval at which Camera Acquisition extracts and submits images.
 
 Additional camera configuration may include manufacturer, model, mounting position, orientation, field of view and calibration information.
 
@@ -215,6 +211,7 @@ Proposed attributes:
 - `inference_schedule` – Defines when or how frequently inference is performed.
 - `saving_policy` – Defines the image and inference data retention or saving behaviour associated with the subscription.
 - `status` – Determines whether the processing configuration is available for use.
+- `max_image_age` – Maximum acceptable age of an image when selected for inference processing.
 
 A Subscription is independent of a particular Camera. This allows the same processing configuration to be reused across multiple cameras.
 
@@ -252,7 +249,7 @@ Represents an image acquired from a registered camera.
 Proposed attributes:
 
 - `image_id` – Primary key.
-- `image_reference` – Reference to the image stored in file storage (MinIO).
+- `image_reference` – Reference to the image stored in file storage.
 - `camera_id` – Foreign key referencing Camera.
 - `camera_snapshot` – JSON snapshot of relevant camera metadata at the time of image capture.
 - `captured_at` – Image capture timestamp.
@@ -455,7 +452,7 @@ Historical records should remain interpretable even when cameras, subscriptions 
 
 VISP must support independent retention policies for operational metadata and the physical files associated with inference operations.
 
-The database records and physical image files are treated separately. An image file stored in MinIO may be archived or deleted while its corresponding Image database record remains available.
+The database records and physical image files are treated separately. An image file stored in S3-compatible file storage solution may be archived or deleted while its corresponding Image database record remains available.
 
 Retention policies may apply independently to:
 
@@ -467,7 +464,7 @@ Retention policies may apply independently to:
 
 For example, image files may be retained for a shorter period than inference metadata. This allows detection records and historical inference results to remain available even after the original image has expired.
 
-The `detection_count` stored in an InferenceResult represents the number of detections originally produced by inference. It must remain
+The `detection_count` stored in an InferenceResult represents the number of detections originally produced by inference, even if individual Detection records are subsequently removed by retention policies.
 
 ### 3.6 Data Retrieval
 
@@ -548,7 +545,7 @@ The retrieval process consists of:
 1. Retrieve Detection records matching the requested query criteria.
 2. Identify their associated InferenceResult and InferenceTask records.
 3. Resolve the corresponding Image records.
-4. Retrieve the physical image files from File Storage (MinIO) using their `image_reference`.
+4. Retrieve the physical image files from File Storage using their `image_reference`.
 5. Associate the retrieved images with their corresponding inference results and detections.
 
 Multiple detections or inference tasks may reference the same Image. VISP should identify unique Image records and retrieve each corresponding physical image only once per request.
@@ -615,7 +612,7 @@ The Database stores VISP configuration, registry information, operational state,
 
 For the initial release, a single Database deployment will serve all VISP components.
 
-The Database is independently deployable and accessible to authorized platform components over the network. All VISP Server instances share the same logical database, ensuring consistent access to platform data.
+The Database is independently deployable and accessible over the network to authorized VISP Server instances.
 
 Database replication, clustering, and other high-availability or scaling mechanisms may be introduced in the future as operational requirements evolve.
 
