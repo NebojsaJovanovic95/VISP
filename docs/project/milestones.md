@@ -43,20 +43,37 @@ The milestones follow the initial software architecture and focus on delivering 
 
 **Outcome:** The database schema is implemented, validated, and accessible through the VISP Server.
 
-## Milestone 3 – VISP Server Foundation
+### Milestone 3 — VISP Server Foundation
 
-**Objective:** Establish the VISP Server as the central platform coordinator.
+**Status:** Complete
 
-Deliverables:
-- Establish the HTTP server and REST API structure.
-- Implement health and readiness endpoints.
-- Implement camera registration and management.
-- Implement model and subscription management.
-- Implement CameraSubscription management.
-- Provide camera configuration to Camera Acquisition.
-- Establish the Server's internal application and data-access boundaries.
+**Completed:** November 18, 2026
 
-**Outcome:** The VISP Server can manage platform configuration and provide camera configuration to acquisition components.
+**Objectives:**
+Establish the VISP Server as the central application component responsible for configuration, database connectivity, HTTP API access, and application lifecycle management.
+
+**Deliverables:**
+- [x] Implement centralized application configuration.
+- [x] Initialize PostgreSQL connection pool through the database package.
+- [x] Establish HTTP server startup and lifecycle management.
+- [x] Implement HTTP request routing.
+- [x] Implement health check endpoint (`GET /health`).
+- [x] Implement graceful shutdown on interrupt and termination signals.
+- [x] Support configurable HTTP server address.
+- [x] Implement HTTP request logging middleware.
+- [x] Log request method, path, response status, and duration.
+- [x] Add unit tests for health endpoint and request logging middleware.
+- [x] Verify application formatting, tests, static analysis, and builds.
+
+**Completion Criteria:**
+- VISP Server starts successfully using application configuration.
+- PostgreSQL connectivity is established during startup.
+- Health endpoint responds successfully.
+- HTTP requests are logged consistently.
+- Server shuts down gracefully on termination signals.
+- Automated tests pass and application builds successfully.
+
+**Outcome:
 
 ## Milestone 4 – Camera Acquisition
 

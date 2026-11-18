@@ -35,8 +35,8 @@ func Run() error {
 	defer db.Close()
 
 	httpServer := &http.Server{
-		Addr:    ":8080",
-		Handler: newRouter(),
+		Addr:    cfg.Server.Address,
+		Handler: loggingMiddleware(newRouter()),
 	}
 
 	serverErr := make(chan error, 1)
@@ -45,7 +45,7 @@ func Run() error {
 		serverErr <- httpServer.ListenAndServe()
 	}()
 
-	fmt.Println("VISP Server listening on :8080")
+	fmt.Printf("VISP Server listening on %s\n", cfg.Server.Address)
 
 	select {
 	case err := <-serverErr:
