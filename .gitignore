@@ -3,3 +3,6 @@
 
 # Go test coverage
 *.out
+
+# Env File
+.env
