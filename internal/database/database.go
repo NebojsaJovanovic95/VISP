@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"os"
 
+	"github.com/NebojsaJovanovic95/VISP/internal/config"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -16,28 +16,16 @@ type Database struct {
 }
 
 // New creates a database connection pool and verifies connectivity.
-func New(ctx context.Context) (*Database, error) {
-	host := os.Getenv("POSTGRES_HOST")
-	port := os.Getenv("POSTGRES_PORT")
-	dbName := os.Getenv("POSTGRES_DB")
-	user := os.Getenv("POSTGRES_USER")
-	password := os.Getenv("POSTGRES_PASSWORD")
-	sslMode := os.Getenv("POSTGRES_SSLMODE")
-
-	if host == "" || port == "" || dbName == "" ||
-		user == "" || password == "" || sslMode == "" {
-		return nil, fmt.Errorf("missing required PostgreSQL environment variables")
-	}
-
+func New(ctx context.Context, cfg config.DatabaseConfig) (*Database, error) {
 	connURL := url.URL{
 		Scheme: "postgres",
-		User:   url.UserPassword(user, password),
-		Host:   net.JoinHostPort(host, port),
-		Path:   dbName,
+		User:   url.UserPassword(cfg.User, cfg.Password),
+		Host:   net.JoinHostPort(cfg.Host, cfg.Port),
+		Path:   cfg.Name,
 	}
 
 	query := url.Values{}
-	query.Set("sslmode", sslMode)
+	query.Set("sslmode", cfg.SSLMode)
 	connURL.RawQuery = query.Encode()
 
 	pool, err := pgxpool.New(ctx, connURL.String())

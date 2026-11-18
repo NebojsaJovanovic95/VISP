@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/NebojsaJovanovic95/VISP/internal/config"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -19,7 +20,11 @@ func TestNew(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	db, err := New(ctx)
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("load configuration: %v", err)
+	}
+	db, err := New(ctx, cfg.Database)
 	if err != nil {
 		t.Fatalf("connect to PostgreSQL: %v", err)
 	}
@@ -132,7 +137,12 @@ func TestImageRequiresExistingCamera(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	db, err := New(ctx)
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("load configuration: %v", err)
+	}
+
+	db, err := New(ctx, cfg.Database)
 	if err != nil {
 		t.Fatalf("connect to PostgreSQL: %v", err)
 	}
@@ -176,7 +186,12 @@ func TestCameraSubscriptionMustBeUnique(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	db, err := New(ctx)
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("load configuration: %v", err)
+	}
+
+	db, err := New(ctx, cfg.Database)
 	if err != nil {
 		t.Fatalf("connect to PostgreSQL: %v", err)
 	}
@@ -256,7 +271,12 @@ func TestCameraAcquisitionIntervalMustBePositive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	db, err := New(ctx)
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("load configuration: %v", err)
+	}
+
+	db, err := New(ctx, cfg.Database)
 	if err != nil {
 		t.Fatalf("connect to PostgreSQL: %v", err)
 	}
@@ -296,7 +316,12 @@ func TestDetectionConfidenceMustBeValid(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	db, err := New(ctx)
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("load configuration: %v", err)
+	}
+
+	db, err := New(ctx, cfg.Database)
 	if err != nil {
 		t.Fatalf("connect to PostgreSQL: %v", err)
 	}
@@ -336,7 +361,12 @@ func TestDetectionBoundingBoxMustBeWithinImage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	db, err := New(ctx)
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("load configuration: %v", err)
+	}
+
+	db, err := New(ctx, cfg.Database)
 	if err != nil {
 		t.Fatalf("connect to PostgreSQL: %v", err)
 	}
