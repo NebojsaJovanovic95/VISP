@@ -6,7 +6,8 @@ build:
 	go build -o bin/camera-acquisition ./cmd/camera-acquisition
 
 run-server:
-	@set -a; . ./.env; set +a; go run ./cmd/visp-server
+	go build -o bin/visp-server ./cmd/visp-server
+	@set -a; . ./.env; set +a; ./bin/visp-server
 
 test:
 	go test ./...
