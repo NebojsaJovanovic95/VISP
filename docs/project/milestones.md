@@ -25,17 +25,21 @@ The milestones follow the initial software architecture and focus on delivering 
 
 ## Milestone 2 – Database Foundation
 
+**Status:** In Progress
+
 **Objective:** Establish PostgreSQL as the platform's structured data store.
 
-Deliverables:
+**Deliverables:**
 - Configure PostgreSQL for local development.
 - Establish database connection management in the VISP Server.
-- Implement database migrations.
+- Implement Goose database migrations.
 - Create the initial configuration and registry tables.
 - Create the initial operational and historical data tables.
-- Implement and test the required relationships and constraints.
+- Implement primary keys, foreign keys, unique constraints, and validation constraints.
+- Verify database connectivity through the VISP Server.
+- Test the required database relationships and constraints.
 
-**Outcome:** The database schema is implemented and accessible through the VISP Server.
+**Outcome:** The database schema is implemented, validated, and accessible through the VISP Server.
 
 ## Milestone 3 – VISP Server Foundation
 

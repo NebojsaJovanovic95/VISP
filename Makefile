@@ -1,9 +1,12 @@
-.PHONY: build test coverage fmt vet
+.PHONY: build test coverage fmt vet run-server
 
 build:
 	mkdir -p bin
 	go build -o bin/visp-server ./cmd/visp-server
 	go build -o bin/camera-acquisition ./cmd/camera-acquisition
+
+run-server:
+	@set -a; . ./.env; set +a; go run ./cmd/visp-server
 
 test:
 	go test ./...
