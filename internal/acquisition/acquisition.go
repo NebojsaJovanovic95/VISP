@@ -19,6 +19,14 @@ func Run() error {
 
 	fmt.Println("Camera Acquisition started")
 
+	camera := Camera{
+		URL: "rtsp://192.168.18.2:554/user=admin&password=&channel=1&stream=0.sdp?",
+	}
+
+	if err := camera.Connect(ctx); err != nil {
+		return fmt.Errorf("connect to camera: %w", err)
+	}
+
 	<-ctx.Done()
 
 	fmt.Println("Shutdown signal received")
