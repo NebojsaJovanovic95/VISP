@@ -2,7 +2,6 @@ package acquisition
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -10,8 +9,6 @@ import (
 	"github.com/bluenviron/gortsplib/v5"
 	"github.com/bluenviron/gortsplib/v5/pkg/base"
 	"github.com/bluenviron/gortsplib/v5/pkg/format"
-	"github.com/bluenviron/gortsplib/v5/pkg/format/rtph265"
-	"github.com/bluenviron/mediacommon/v2/pkg/codecs/h265"
 	"github.com/pion/rtp"
 )
 
@@ -20,7 +17,7 @@ type Camera struct {
 	URL string
 }
 
-// Connect receives and depacketizes the camera's H.265 stream.
+// Connect establishes an RTSP connection and receives the camera stream.
 func (c *Camera) Connect(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -60,57 +57,23 @@ func (c *Camera) Connect(ctx context.Context) error {
 		return fmt.Errorf("camera stream does not contain H.265 video")
 	}
 
-	rtpDecoder, err := forma.CreateDecoder()
+	stream, err := newH265Stream(forma)
 	if err != nil {
-		return fmt.Errorf("create H.265 RTP decoder: %w", err)
+		return fmt.Errorf("create H.265 stream: %w", err)
 	}
-
-	h265Dec := &h265Decoder{}
-	if err := h265Dec.initialize(); err != nil {
-		return fmt.Errorf("initialize H.265 decoder: %w", err)
-	}
-	defer h265Dec.close()
-
-	// Provide codec parameters from the RTSP description, if available.
-	if forma.VPS != nil {
-		h265Dec.decode([][]byte{forma.VPS})
-	}
-	if forma.SPS != nil {
-		h265Dec.decode([][]byte{forma.SPS})
-	}
-	if forma.PPS != nil {
-		h265Dec.decode([][]byte{forma.PPS})
-	}
+	defer stream.Close()
 
 	_, err = client.Setup(desc.BaseURL, media, 0, 0)
 	if err != nil {
 		return fmt.Errorf("setup RTSP media: %w", err)
 	}
 
-	var firstRandomAccess bool
 	var firstDecodedFrame sync.Once
 
 	client.OnPacketRTP(media, forma, func(pkt *rtp.Packet) {
-		au, err := rtpDecoder.Decode(pkt)
+		img, err := stream.ProcessPacket(pkt)
 		if err != nil {
-			if !errors.Is(err, rtph265.ErrNonStartingPacketAndNoPrevious) &&
-				!errors.Is(err, rtph265.ErrMorePacketsNeeded) {
-				log.Printf("H.265 RTP decoding error: %v", err)
-			}
-			return
-		}
-
-		// Wait for a random-access frame before starting video decoding.
-		if !firstRandomAccess {
-			if !h265.IsRandomAccess(au) {
-				return
-			}
-			firstRandomAccess = true
-		}
-
-		img, err := h265Dec.decode(au)
-		if err != nil {
-			log.Printf("H.265 frame decoding error: %v", err)
+			log.Printf("Process video packet: %v", err)
 			return
 		}
 
