@@ -14,6 +14,18 @@ import (
 	"github.com/NebojsaJovanovic95/VISP/internal/database"
 )
 
+// Server holds the dependencies required by the VISP HTTP API.
+type Server struct {
+	db *database.Database
+}
+
+// New creates a Server with its required dependencies.
+func New(db *database.Database) *Server {
+	return &Server{
+		db: db,
+	}
+}
+
 // Run starts the VISP Server.
 func Run() error {
 	ctx, stop := signal.NotifyContext(
@@ -34,9 +46,11 @@ func Run() error {
 	}
 	defer db.Close()
 
+	server := New(db)
+
 	httpServer := &http.Server{
 		Addr:    cfg.Server.Address,
-		Handler: loggingMiddleware(newRouter()),
+		Handler: loggingMiddleware(server.Router()),
 	}
 
 	serverErr := make(chan error, 1)
@@ -73,8 +87,8 @@ func Run() error {
 	return nil
 }
 
-// newRouter creates the VISP HTTP request router.
-func newRouter() *http.ServeMux {
+// Router creates the VISP HTTP request router.
+func (s *Server) Router() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler)
 

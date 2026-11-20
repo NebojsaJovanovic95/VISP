@@ -15,6 +15,16 @@ type Database struct {
 	pool *pgxpool.Pool
 }
 
+// CameraConfig represents the configuration of a registered camera.
+type CameraConfig struct {
+	CameraID                   string
+	CameraName                 string
+	RTSPURL                    string
+	Location                   *string
+	Status                     string
+	AcquisitionIntervalSeconds float64
+}
+
 // New creates a database connection pool and verifies connectivity.
 func New(ctx context.Context, cfg config.DatabaseConfig) (*Database, error) {
 	connURL := url.URL{
@@ -46,4 +56,48 @@ func New(ctx context.Context, cfg config.DatabaseConfig) (*Database, error) {
 // Close releases all connections in the pool.
 func (db *Database) Close() {
 	db.pool.Close()
+}
+
+// ListCameras retrieves all registered cameras.
+func (db *Database) ListCameras(ctx context.Context) ([]CameraConfig, error) {
+	rows, err := db.pool.Query(ctx, `
+        SELECT
+            camera_id::text,
+            camera_name,
+            rtsp_url,
+            location,
+            status,
+            EXTRACT(EPOCH FROM acquisition_interval)
+        FROM cameras
+        ORDER BY camera_name;
+    `)
+	if err != nil {
+		return nil, fmt.Errorf("query cameras: %w", err)
+	}
+	defer rows.Close()
+
+	cameras := []CameraConfig{}
+
+	for rows.Next() {
+		var camera CameraConfig
+
+		if err := rows.Scan(
+			&camera.CameraID,
+			&camera.CameraName,
+			&camera.RTSPURL,
+			&camera.Location,
+			&camera.Status,
+			&camera.AcquisitionIntervalSeconds,
+		); err != nil {
+			return nil, fmt.Errorf("scan camera: %w", err)
+		}
+
+		cameras = append(cameras, camera)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate cameras: %w", err)
+	}
+
+	return cameras, nil
 }
