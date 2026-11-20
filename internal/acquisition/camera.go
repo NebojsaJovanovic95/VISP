@@ -3,6 +3,7 @@ package acquisition
 import (
 	"context"
 	"fmt"
+	"image"
 	"log"
 	"sync"
 
@@ -14,7 +15,8 @@ import (
 
 // Camera represents an RTSP camera connection.
 type Camera struct {
-	URL string
+	URL     string
+	OnFrame func(*image.RGBA)
 }
 
 // Connect establishes an RTSP connection and receives the camera stream.
@@ -38,6 +40,7 @@ func (c *Camera) Connect(ctx context.Context) error {
 	}
 
 	var closeOnce sync.Once
+
 	closeClient := func() {
 		closeOnce.Do(client.Close)
 	}
@@ -68,8 +71,6 @@ func (c *Camera) Connect(ctx context.Context) error {
 		return fmt.Errorf("setup RTSP media: %w", err)
 	}
 
-	var firstDecodedFrame sync.Once
-
 	client.OnPacketRTP(media, forma, func(pkt *rtp.Packet) {
 		img, err := stream.ProcessPacket(pkt)
 		if err != nil {
@@ -81,13 +82,9 @@ func (c *Camera) Connect(ctx context.Context) error {
 			return
 		}
 
-		firstDecodedFrame.Do(func() {
-			log.Printf(
-				"Successfully decoded first frame: %dx%d",
-				img.Bounds().Dx(),
-				img.Bounds().Dy(),
-			)
-		})
+		if c.OnFrame != nil {
+			c.OnFrame(img)
+		}
 	})
 
 	_, err = client.Play(nil)

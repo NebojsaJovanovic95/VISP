@@ -3,8 +3,10 @@ package acquisition
 import (
 	"context"
 	"fmt"
+	"image"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 )
 
@@ -19,8 +21,19 @@ func Run() error {
 
 	fmt.Println("Camera Acquisition started")
 
+	var firstFrame sync.Once
+
 	camera := Camera{
 		URL: "rtsp://192.168.18.2:554/user=admin&password=&channel=1&stream=0.sdp?",
+		OnFrame: func(frame *image.RGBA) {
+			firstFrame.Do(func() {
+				fmt.Printf(
+					"Acquisition received frame: %dx%d\n",
+					frame.Bounds().Dx(),
+					frame.Bounds().Dy(),
+				)
+			})
+		},
 	}
 
 	if err := camera.Connect(ctx); err != nil {
