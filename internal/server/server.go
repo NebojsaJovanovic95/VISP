@@ -35,7 +35,7 @@ func Run() error {
 	)
 	defer stop()
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadServer()
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
 	}
@@ -49,7 +49,7 @@ func Run() error {
 	server := New(db)
 
 	httpServer := &http.Server{
-		Addr:    cfg.Server.Address,
+		Addr:    cfg.Address,
 		Handler: loggingMiddleware(server.Router()),
 	}
 
@@ -59,7 +59,7 @@ func Run() error {
 		serverErr <- httpServer.ListenAndServe()
 	}()
 
-	fmt.Printf("VISP Server listening on %s\n", cfg.Server.Address)
+	fmt.Printf("VISP Server listening on %s\n", cfg.Address)
 
 	select {
 	case err := <-serverErr:

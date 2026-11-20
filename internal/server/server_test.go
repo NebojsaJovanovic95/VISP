@@ -53,7 +53,7 @@ func TestListCamerasRoute(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadServer()
 	if err != nil {
 		t.Fatalf("load configuration: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestListCamerasDatabaseError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadServer()
 	if err != nil {
 		t.Fatalf("load configuration: %v", err)
 	}

@@ -20,7 +20,7 @@ func TestNew(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadServer()
 	if err != nil {
 		t.Fatalf("load configuration: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestImageRequiresExistingCamera(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadServer()
 	if err != nil {
 		t.Fatalf("load configuration: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestCameraSubscriptionMustBeUnique(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadServer()
 	if err != nil {
 		t.Fatalf("load configuration: %v", err)
 	}
@@ -271,7 +271,7 @@ func TestCameraAcquisitionIntervalMustBePositive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadServer()
 	if err != nil {
 		t.Fatalf("load configuration: %v", err)
 	}
@@ -316,7 +316,7 @@ func TestDetectionConfidenceMustBeValid(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadServer()
 	if err != nil {
 		t.Fatalf("load configuration: %v", err)
 	}
@@ -361,7 +361,7 @@ func TestDetectionBoundingBoxMustBeWithinImage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadServer()
 	if err != nil {
 		t.Fatalf("load configuration: %v", err)
 	}
@@ -406,7 +406,7 @@ func TestListCameras(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadServer()
 	if err != nil {
 		t.Fatalf("load configuration: %v", err)
 	}
