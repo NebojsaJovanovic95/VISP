@@ -1,37 +1,36 @@
 package config
 
-import (
-	"testing"
-)
+import "testing"
 
-func TestLoadDefaults(t *testing.T) {
+func TestLoadServerDefaults(t *testing.T) {
 	setDatabaseEnv(t)
+	t.Setenv("VISP_SERVER_ADDRESS", "")
 
-	cfg, err := Load()
+	cfg, err := LoadServer()
 	if err != nil {
-		t.Fatalf("load configuration: %v", err)
+		t.Fatalf("load server configuration: %v", err)
 	}
 
-	if cfg.Server.Address != ":8080" {
-		t.Errorf("expected server address %q, got %q", ":8080", cfg.Server.Address)
+	if cfg.Address != ":8080" {
+		t.Errorf("expected server address %q, got %q", ":8080", cfg.Address)
 	}
 }
 
-func TestLoadCustomServerAddress(t *testing.T) {
+func TestLoadServerCustomAddress(t *testing.T) {
 	setDatabaseEnv(t)
 	t.Setenv("VISP_SERVER_ADDRESS", "localhost:9090")
 
-	cfg, err := Load()
+	cfg, err := LoadServer()
 	if err != nil {
-		t.Fatalf("load configuration: %v", err)
+		t.Fatalf("load server configuration: %v", err)
 	}
 
-	if cfg.Server.Address != "localhost:9090" {
-		t.Errorf("expected server address %q, got %q", "localhost:9090", cfg.Server.Address)
+	if cfg.Address != "localhost:9090" {
+		t.Errorf("expected server address %q, got %q", "localhost:9090", cfg.Address)
 	}
 }
 
-func TestLoadMissingDatabaseConfig(t *testing.T) {
+func TestLoadServerMissingDatabaseConfig(t *testing.T) {
 	t.Setenv("POSTGRES_HOST", "")
 	t.Setenv("POSTGRES_PORT", "")
 	t.Setenv("POSTGRES_DB", "")
@@ -39,9 +38,58 @@ func TestLoadMissingDatabaseConfig(t *testing.T) {
 	t.Setenv("POSTGRES_PASSWORD", "")
 	t.Setenv("POSTGRES_SSLMODE", "")
 
-	_, err := Load()
+	_, err := LoadServer()
 	if err == nil {
 		t.Fatal("expected configuration error, got nil")
+	}
+}
+
+func TestLoadAcquisitionDefaults(t *testing.T) {
+	t.Setenv("VISP_SERVER_URL", "")
+
+	cfg, err := LoadAcquisition()
+	if err != nil {
+		t.Fatalf("load acquisition configuration: %v", err)
+	}
+
+	if cfg.ServerURL != "http://localhost:8080" {
+		t.Errorf("expected server URL %q, got %q", "http://localhost:8080", cfg.ServerURL)
+	}
+}
+
+func TestLoadAcquisitionCustomServerURL(t *testing.T) {
+	t.Setenv("VISP_SERVER_URL", "http://localhost:9090")
+
+	cfg, err := LoadAcquisition()
+	if err != nil {
+		t.Fatalf("load acquisition configuration: %v", err)
+	}
+
+	if cfg.ServerURL != "http://localhost:9090" {
+		t.Errorf("expected server URL %q, got %q", "http://localhost:9090", cfg.ServerURL)
+	}
+}
+
+func TestLoadAcquisitionInvalidServerURL(t *testing.T) {
+	t.Setenv("VISP_SERVER_URL", "not-a-valid-url")
+
+	_, err := LoadAcquisition()
+	if err == nil {
+		t.Fatal("expected configuration error, got nil")
+	}
+}
+
+func TestLoadAcquisitionDoesNotRequireDatabase(t *testing.T) {
+	t.Setenv("POSTGRES_HOST", "")
+	t.Setenv("POSTGRES_PORT", "")
+	t.Setenv("POSTGRES_DB", "")
+	t.Setenv("POSTGRES_USER", "")
+	t.Setenv("POSTGRES_PASSWORD", "")
+	t.Setenv("POSTGRES_SSLMODE", "")
+
+	_, err := LoadAcquisition()
+	if err != nil {
+		t.Fatalf("acquisition configuration should not require database settings: %v", err)
 	}
 }
 
