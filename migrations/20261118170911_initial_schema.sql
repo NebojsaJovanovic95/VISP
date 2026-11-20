@@ -7,7 +7,7 @@ CREATE TABLE cameras (
   rtsp_url TEXT NOT NULL,
   location TEXT,
   status TEXT NOT NULL,
-  acquisition_interval INTEGER NOT NULL CHECK (acquisition_interval > 0)
+  acquisition_interval INTERVAL NOT NULL CHECK (acquisition_interval > INTERVAL '0 seconds')
 );
 
 -- Models managed by VISP.

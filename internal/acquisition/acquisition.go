@@ -6,7 +6,6 @@ import (
 	"image"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -22,21 +21,17 @@ func Run() error {
 
 	fmt.Println("Camera Acquisition started")
 
-	var firstFrame sync.Once
-
 	camera := Camera{
 		URL:                 "rtsp://192.168.18.2:554/user=admin&password=&channel=1&stream=0.sdp?",
 		AcquisitionInterval: 5 * time.Second,
 		OnFrame: func(frame *image.RGBA) {
-			firstFrame.Do(func() {
-				fmt.Printf(
-					"Acquisition received frame: %dx%d\n",
-					frame.Bounds().Dx(),
-					frame.Bounds().Dy(),
-				)
-			})
-		},
-	}
+			fmt.Printf(
+				"[%s] Acquisition received frame: %dx%d\n",
+				time.Now().Format("15:04:05"),
+				frame.Bounds().Dx(),
+				frame.Bounds().Dy(),
+			)
+		}}
 
 	if err := camera.Connect(ctx); err != nil {
 		return fmt.Errorf("connect to camera: %w", err)
