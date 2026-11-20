@@ -91,7 +91,7 @@ func Run() error {
 func (s *Server) Router() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler)
-
+	mux.HandleFunc("GET /api/cameras", s.listCamerasHandler)
 	return mux
 }
 

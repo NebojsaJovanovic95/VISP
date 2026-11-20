@@ -397,3 +397,95 @@ func TestDetectionBoundingBoxMustBeWithinImage(t *testing.T) {
 		}
 	})
 }
+
+func TestListCameras(t *testing.T) {
+	if os.Getenv("POSTGRES_PASSWORD") == "" {
+		t.Skip("PostgreSQL environment variables are not configured")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("load configuration: %v", err)
+	}
+
+	db, err := New(ctx, cfg.Database)
+	if err != nil {
+		t.Fatalf("connect to PostgreSQL: %v", err)
+	}
+	defer db.Close()
+
+	var cameraID string
+
+	err = db.pool.QueryRow(ctx, `
+		INSERT INTO cameras (
+			camera_name,
+			rtsp_url,
+			location,
+			status,
+			acquisition_interval
+		)
+		VALUES ($1, $2, $3, $4, INTERVAL '7 seconds')
+		RETURNING camera_id::text
+	`,
+		"ListCameras Test",
+		"rtsp://localhost/test",
+		"Test Location",
+		"active",
+	).Scan(&cameraID)
+	if err != nil {
+		t.Fatalf("insert test camera: %v", err)
+	}
+
+	defer func() {
+		_, err := db.pool.Exec(ctx,
+			`DELETE FROM cameras WHERE camera_id = $1`,
+			cameraID,
+		)
+		if err != nil {
+			t.Errorf("delete test camera: %v", err)
+		}
+	}()
+
+	cameras, err := db.ListCameras(ctx)
+	if err != nil {
+		t.Fatalf("list cameras: %v", err)
+	}
+
+	var found *CameraConfig
+
+	for i := range cameras {
+		if cameras[i].CameraID == cameraID {
+			found = &cameras[i]
+			break
+		}
+	}
+
+	if found == nil {
+		t.Fatal("expected test camera in camera list")
+	}
+
+	if found.CameraName != "ListCameras Test" {
+		t.Errorf("expected camera name %q, got %q",
+			"ListCameras Test", found.CameraName)
+	}
+
+	if found.RTSPURL != "rtsp://localhost/test" {
+		t.Errorf("unexpected RTSP URL: %q", found.RTSPURL)
+	}
+
+	if found.Location == nil || *found.Location != "Test Location" {
+		t.Errorf("unexpected location: %v", found.Location)
+	}
+
+	if found.Status != "active" {
+		t.Errorf("expected status %q, got %q", "active", found.Status)
+	}
+
+	if found.AcquisitionIntervalSeconds != 7 {
+		t.Errorf("expected acquisition interval 7 seconds, got %f",
+			found.AcquisitionIntervalSeconds)
+	}
+}
