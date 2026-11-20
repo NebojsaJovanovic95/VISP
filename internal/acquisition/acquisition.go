@@ -3,6 +3,7 @@ package acquisition
 import (
 	"context"
 	"fmt"
+	"image"
 	"os"
 	"os/signal"
 	"syscall"
@@ -37,14 +38,38 @@ func Run() error {
 
 	fmt.Printf("Retrieved %d camera(s)\n", len(cameras))
 
-	for _, camera := range cameras {
+	for _, cameraConfig := range cameras {
 		fmt.Printf(
 			"Camera: %s | ID: %s | Status: %s | Acquisition interval: %s\n",
-			camera.CameraName,
-			camera.CameraID,
-			camera.Status,
-			time.Duration(camera.AcquisitionIntervalSeconds*float64(time.Second)),
+			cameraConfig.CameraName,
+			cameraConfig.CameraID,
+			cameraConfig.Status,
+			time.Duration(cameraConfig.AcquisitionIntervalSeconds*float64(time.Second)),
 		)
+		fmt.Printf("URI: %s\n", cameraConfig.RTSPURL)
+	}
+
+	for _, cameraConfig := range cameras {
+		if cameraConfig.Status != "active" {
+			continue
+		}
+
+		camera := Camera{
+			URL:                 cameraConfig.RTSPURL,
+			AcquisitionInterval: time.Duration(cameraConfig.AcquisitionIntervalSeconds) * time.Second,
+			OnFrame: func(frame *image.RGBA) {
+				fmt.Printf(
+					"[%s] Acquisition received frame: %dx%d\n",
+					time.Now().Format("15:04:05"),
+					frame.Bounds().Dx(),
+					frame.Bounds().Dy(),
+				)
+			},
+		}
+
+		if err := camera.Connect(ctx); err != nil {
+			return fmt.Errorf("connect to camera: %w", err)
+		}
 	}
 
 	<-ctx.Done()
