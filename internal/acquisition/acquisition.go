@@ -12,6 +12,10 @@ import (
 	"github.com/NebojsaJovanovic95/VISP/internal/config"
 )
 
+type cameraConfigLister interface {
+	ListCameras(context.Context) ([]CameraConfig, error)
+}
+
 // Run starts the Camera Acquisition component.
 func Run() error {
 	ctx, stop := signal.NotifyContext(
@@ -28,6 +32,16 @@ func Run() error {
 
 	client := NewClient(cfg.ServerURL)
 
+	return run(ctx, client, func(ctx context.Context, camera Camera) error {
+		return camera.Connect(ctx)
+	})
+}
+
+func run(
+	ctx context.Context,
+	client cameraConfigLister,
+	connectCamera func(context.Context, Camera) error,
+) error {
 	fmt.Println("Camera Acquisition started")
 	fmt.Println("Fetching camera configurations from VISP Server")
 
@@ -67,7 +81,7 @@ func Run() error {
 			},
 		}
 
-		if err := camera.Connect(ctx); err != nil {
+		if err := connectCamera(ctx, camera); err != nil {
 			return fmt.Errorf("connect to camera: %w", err)
 		}
 	}
