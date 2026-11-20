@@ -6,6 +6,7 @@ import (
 	"image"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/bluenviron/gortsplib/v5"
 	"github.com/bluenviron/gortsplib/v5/pkg/base"
@@ -15,8 +16,9 @@ import (
 
 // Camera represents an RTSP camera connection.
 type Camera struct {
-	URL     string
-	OnFrame func(*image.RGBA)
+	URL                 string
+	AcquisitionInterval time.Duration
+	OnFrame             func(*image.RGBA)
 }
 
 // Connect establishes an RTSP connection and receives the camera stream.
@@ -71,6 +73,8 @@ func (c *Camera) Connect(ctx context.Context) error {
 		return fmt.Errorf("setup RTSP media: %w", err)
 	}
 
+	var lastAcquired time.Time
+
 	client.OnPacketRTP(media, forma, func(pkt *rtp.Packet) {
 		img, err := stream.ProcessPacket(pkt)
 		if err != nil {
@@ -81,6 +85,14 @@ func (c *Camera) Connect(ctx context.Context) error {
 		if img == nil {
 			return
 		}
+
+		now := time.Now()
+
+		if c.AcquisitionInterval > 0 && !lastAcquired.IsZero() && now.Sub(lastAcquired) < c.AcquisitionInterval {
+			return
+		}
+
+		lastAcquired = now
 
 		if c.OnFrame != nil {
 			c.OnFrame(img)

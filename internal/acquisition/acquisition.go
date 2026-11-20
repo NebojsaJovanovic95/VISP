@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 )
 
 // Run starts the Camera Acquisition component.
@@ -24,7 +25,8 @@ func Run() error {
 	var firstFrame sync.Once
 
 	camera := Camera{
-		URL: "rtsp://192.168.18.2:554/user=admin&password=&channel=1&stream=0.sdp?",
+		URL:                 "rtsp://192.168.18.2:554/user=admin&password=&channel=1&stream=0.sdp?",
+		AcquisitionInterval: 5 * time.Second,
 		OnFrame: func(frame *image.RGBA) {
 			firstFrame.Do(func() {
 				fmt.Printf(
