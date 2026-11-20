@@ -3,11 +3,12 @@ package acquisition
 import (
 	"context"
 	"fmt"
-	"image"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/NebojsaJovanovic95/VISP/internal/config"
 )
 
 // Run starts the Camera Acquisition component.
@@ -19,22 +20,31 @@ func Run() error {
 	)
 	defer stop()
 
+	cfg, err := config.LoadAcquisition()
+	if err != nil {
+		return fmt.Errorf("load acquisition configuration: %w", err)
+	}
+
+	client := NewClient(cfg.ServerURL)
+
 	fmt.Println("Camera Acquisition started")
+	fmt.Println("Fetching camera configurations from VISP Server")
 
-	camera := Camera{
-		URL:                 "rtsp://192.168.18.2:554/user=admin&password=&channel=1&stream=0.sdp?",
-		AcquisitionInterval: 5 * time.Second,
-		OnFrame: func(frame *image.RGBA) {
-			fmt.Printf(
-				"[%s] Acquisition received frame: %dx%d\n",
-				time.Now().Format("15:04:05"),
-				frame.Bounds().Dx(),
-				frame.Bounds().Dy(),
-			)
-		}}
+	cameras, err := client.ListCameras(ctx)
+	if err != nil {
+		return fmt.Errorf("retrieve camera configurations: %w", err)
+	}
 
-	if err := camera.Connect(ctx); err != nil {
-		return fmt.Errorf("connect to camera: %w", err)
+	fmt.Printf("Retrieved %d camera(s)\n", len(cameras))
+
+	for _, camera := range cameras {
+		fmt.Printf(
+			"Camera: %s | ID: %s | Status: %s | Acquisition interval: %s\n",
+			camera.CameraName,
+			camera.CameraID,
+			camera.Status,
+			time.Duration(camera.AcquisitionIntervalSeconds*float64(time.Second)),
+		)
 	}
 
 	<-ctx.Done()
