@@ -14,6 +14,7 @@ import (
 
 type cameraConfigLister interface {
 	ListCameras(context.Context) ([]CameraConfig, error)
+	SubmitFrame(context.Context, frameMetadata, *image.RGBA) (string, error)
 }
 
 // Run starts the Camera Acquisition component.
@@ -63,6 +64,28 @@ func run(
 		fmt.Printf("URI: %s\n", cameraConfig.RTSPURL)
 	}
 
+	frames := make(chan frameSubmission, 10)
+	workerDone := make(chan struct{})
+
+	go func() {
+		defer close(workerDone)
+
+		for submission := range frames {
+			imageId, err := client.SubmitFrame(ctx, submission.Metadata, submission.Frame)
+			if err != nil {
+				fmt.Printf("Submit frame: %v\n", err)
+				continue
+			}
+
+			fmt.Printf("Frame submitted: %s\n", imageId)
+		}
+	}()
+
+	defer func() {
+		close(frames)
+		<-workerDone
+	}()
+
 	for _, cameraConfig := range cameras {
 		if cameraConfig.Status != "active" {
 			continue
@@ -71,13 +94,20 @@ func run(
 		camera := Camera{
 			URL:                 cameraConfig.RTSPURL,
 			AcquisitionInterval: time.Duration(cameraConfig.AcquisitionIntervalSeconds) * time.Second,
-			OnFrame: func(frame *image.RGBA) {
-				fmt.Printf(
-					"[%s] Acquisition received frame: %dx%d\n",
-					time.Now().Format("15:04:05"),
-					frame.Bounds().Dx(),
-					frame.Bounds().Dy(),
-				)
+			OnFrame: func(frame *image.RGBA, capturedAt time.Time) {
+				metadata := frameMetadata{
+					CameraID:   cameraConfig.CameraID,
+					CapturedAt: capturedAt,
+				}
+
+				select {
+				case frames <- frameSubmission{
+					Metadata: metadata,
+					Frame:    frame,
+				}:
+				case <-ctx.Done():
+					return
+				}
 			},
 		}
 

@@ -18,7 +18,7 @@ import (
 type Camera struct {
 	URL                 string
 	AcquisitionInterval time.Duration
-	OnFrame             func(*image.RGBA)
+	OnFrame             func(*image.RGBA, time.Time)
 }
 
 // Connect establishes an RTSP connection and receives the camera stream.
@@ -95,7 +95,7 @@ func (c *Camera) Connect(ctx context.Context) error {
 		lastAcquired = now
 
 		if c.OnFrame != nil {
-			c.OnFrame(img)
+			c.OnFrame(img, time.Now())
 		}
 	})
 

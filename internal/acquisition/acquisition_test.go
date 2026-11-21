@@ -3,6 +3,7 @@ package acquisition
 import (
 	"context"
 	"errors"
+	"image"
 	"testing"
 	"time"
 )
@@ -14,6 +15,14 @@ type cameraConfigListerStub struct {
 
 func (s cameraConfigListerStub) ListCameras(context.Context) ([]CameraConfig, error) {
 	return s.cameras, s.err
+}
+
+func (s cameraConfigListerStub) SubmitFrame(
+	context.Context,
+	frameMetadata,
+	*image.RGBA,
+) (string, error) {
+	return "test-image-id", nil
 }
 
 func TestRun(t *testing.T) {
