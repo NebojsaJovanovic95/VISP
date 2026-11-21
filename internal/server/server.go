@@ -16,13 +16,15 @@ import (
 
 // Server holds the dependencies required by the VISP HTTP API.
 type Server struct {
-	db *database.Database
+	db       *database.Database
+	frameDir string
 }
 
 // New creates a Server with its required dependencies.
 func New(db *database.Database) *Server {
 	return &Server{
-		db: db,
+		db:       db,
+		frameDir: "data/frames",
 	}
 }
 
@@ -92,6 +94,7 @@ func (s *Server) Router() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /api/cameras", s.listCamerasHandler)
+	mux.HandleFunc("POST /api/frames", s.receiveFrameHandler)
 	return mux
 }
 
