@@ -101,3 +101,21 @@ func (db *Database) ListCameras(ctx context.Context) ([]CameraConfig, error) {
 
 	return cameras, nil
 }
+
+// CameraExists checks whether a camera is registered.
+func (db *Database) CameraExists(ctx context.Context, cameraID string) (bool, error) {
+	var exists bool
+
+	err := db.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM cameras
+			WHERE camera_id = $1
+		);
+	`, cameraID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check camera existence: %w", err)
+	}
+
+	return exists, nil
+}

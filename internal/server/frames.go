@@ -49,6 +49,17 @@ func (s *Server) receiveFrameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// exists, err := s.db.CameraExists(r.Context(), metadata.CameraID)
+	// if err != nil {
+	// 	http.Error(w, "failed to verify camera", http.StatusInternalServerError)
+	// 	return
+	// }
+	//
+	// if !exists {
+	// 	http.Error(w, "camera not found", http.StatusNotFound)
+	// 	return
+	// }
+
 	imageFile, _, err := r.FormFile("image")
 	if err != nil {
 		http.Error(w, "image file is required", http.StatusBadRequest)

@@ -489,3 +489,66 @@ func TestListCameras(t *testing.T) {
 			found.AcquisitionIntervalSeconds)
 	}
 }
+
+func TestCameraExists(t *testing.T) {
+	if os.Getenv("POSTGRES_PASSWORD") == "" {
+		t.Skip("PostgreSQL environment variables are not configured")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cfg, err := config.LoadServer()
+	if err != nil {
+		t.Fatalf("load configuration: %v", err)
+	}
+
+	db, err := New(ctx, cfg.Database)
+	if err != nil {
+		t.Fatalf("connect to PostgreSQL: %v", err)
+	}
+	defer db.Close()
+
+	withTransaction(t, db, func(ctx context.Context, tx pgx.Tx) {
+		var cameraID string
+
+		err := tx.QueryRow(ctx, `
+			INSERT INTO cameras (
+				camera_name,
+				rtsp_url,
+				status,
+				acquisition_interval
+			)
+			VALUES ($1, $2, $3, INTERVAL '5 seconds')
+			RETURNING camera_id::text
+		`,
+			"CameraExists Test",
+			"rtsp://localhost/test",
+			"active",
+		).Scan(&cameraID)
+		if err != nil {
+			t.Fatalf("insert test camera: %v", err)
+		}
+
+		exists, err := db.CameraExists(ctx, cameraID)
+		if err != nil {
+			t.Fatalf("check existing camera: %v", err)
+		}
+
+		if !exists {
+			t.Error("expected camera to exist")
+		}
+
+		exists, err = db.CameraExists(
+			ctx,
+			"00000000-0000-0000-0000-000000000001",
+		)
+		if err != nil {
+			t.Fatalf("check nonexistent camera: %v", err)
+		}
+
+		if exists {
+			t.Error("expected camera not to exist")
+		}
+	})
+}
