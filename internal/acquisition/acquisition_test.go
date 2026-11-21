@@ -9,19 +9,25 @@ import (
 )
 
 type cameraConfigListerStub struct {
-	cameras []CameraConfig
-	err     error
+	cameras     []CameraConfig
+	err         error
+	submissions []frameSubmission
 }
 
-func (s cameraConfigListerStub) ListCameras(context.Context) ([]CameraConfig, error) {
+func (s *cameraConfigListerStub) ListCameras(context.Context) ([]CameraConfig, error) {
 	return s.cameras, s.err
 }
 
-func (s cameraConfigListerStub) SubmitFrame(
-	context.Context,
-	frameMetadata,
-	*image.RGBA,
+func (s *cameraConfigListerStub) SubmitFrame(
+	_ context.Context,
+	metadata frameMetadata,
+	frame *image.RGBA,
 ) (string, error) {
+	s.submissions = append(s.submissions, frameSubmission{
+		Metadata: metadata,
+		Frame:    frame,
+	})
+
 	return "test-image-id", nil
 }
 
@@ -50,8 +56,14 @@ func TestRun(t *testing.T) {
 
 	var connectedCameras []Camera
 
-	err := run(ctx, client, func(_ context.Context, camera Camera) error {
+	err := run(ctx, &client, func(_ context.Context, camera Camera) error {
 		connectedCameras = append(connectedCameras, camera)
+
+		frame := image.NewRGBA(image.Rect(0, 0, 640, 480))
+		capturedAt := time.Now()
+
+		camera.OnFrame(frame, capturedAt)
+
 		cancel()
 		return nil
 	})
@@ -83,7 +95,7 @@ func TestRunListCamerasError(t *testing.T) {
 		err: expectedErr,
 	}
 
-	err := run(context.Background(), client, func(context.Context, Camera) error {
+	err := run(context.Background(), &client, func(context.Context, Camera) error {
 		t.Fatal("camera should not be connected")
 		return nil
 	})
@@ -105,7 +117,7 @@ func TestRunCameraConnectionError(t *testing.T) {
 		},
 	}
 
-	err := run(context.Background(), client, func(context.Context, Camera) error {
+	err := run(context.Background(), &client, func(context.Context, Camera) error {
 		return expectedErr
 	})
 
