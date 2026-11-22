@@ -55,12 +55,11 @@ func TestRun(t *testing.T) {
 	}
 
 	var connectedCameras []Camera
+	frame := image.NewRGBA(image.Rect(0, 0, 2048, 1152))
+	capturedAt := time.Now()
 
 	err := run(ctx, &client, func(_ context.Context, camera Camera) error {
 		connectedCameras = append(connectedCameras, camera)
-
-		frame := image.NewRGBA(image.Rect(0, 0, 640, 480))
-		capturedAt := time.Now()
 
 		camera.OnFrame(frame, capturedAt)
 
@@ -75,6 +74,25 @@ func TestRun(t *testing.T) {
 		t.Fatalf("expected 1 connected camera, got %d", len(connectedCameras))
 	}
 
+	submission := client.submissions[0]
+
+	if submission.Metadata.CameraID != "active-camera" {
+		t.Errorf(
+			"expected camera ID active-camera, got %s",
+			submission.Metadata.CameraID,
+		)
+	}
+
+	if !submission.Metadata.CapturedAt.Equal(capturedAt) {
+		t.Errorf("expected capture time %v, got %v",
+			capturedAt,
+			submission.Metadata.CapturedAt,
+		)
+	}
+
+	if submission.Frame != frame {
+		t.Error("submitted frame does not match acquired frame")
+	}
 	if connectedCameras[0].URL != "rtsp://localhost:554/active" {
 		t.Errorf("expected active camera URL, got %s", connectedCameras[0].URL)
 	}
