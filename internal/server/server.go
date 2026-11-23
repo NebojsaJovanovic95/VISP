@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -96,6 +97,7 @@ func (s *Server) Router() *http.ServeMux {
 	mux.HandleFunc("GET /api/cameras", s.listCamerasHandler)
 	mux.HandleFunc("POST /api/frames", s.receiveFrameHandler)
 	mux.HandleFunc("POST /api/heartbeat", s.heartbeatHandler)
+	mux.HandleFunc("POST /api/cameras/{camera_id}/status", s.cameraStatusHandler)
 	return mux
 }
 
@@ -111,6 +113,36 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 // heartbeatHandler handles component heartbeat requests.
 func (s *Server) heartbeatHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Component heartbeat received at %s\n", time.Now().Format(time.RFC3339))
+
+	w.WriteHeader(http.StatusOK)
+}
+
+type cameraStatusRequest struct {
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+}
+
+// cameraStatusHandler handles camera status reports.
+func (s *Server) cameraStatusHandler(w http.ResponseWriter, r *http.Request) {
+	cameraID := r.PathValue("camera_id")
+
+	var request cameraStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if request.Status != "connected" && request.Status != "disconnected" {
+		http.Error(w, "invalid camera status", http.StatusBadRequest)
+		return
+	}
+
+	fmt.Printf(
+		"Camera status received: camera_id=%s status=%s error=%s\n",
+		cameraID,
+		request.Status,
+		request.Error,
+	)
 
 	w.WriteHeader(http.StatusOK)
 }

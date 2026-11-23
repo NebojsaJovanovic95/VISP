@@ -110,29 +110,50 @@ Establish the VISP Server as the central application component responsible for c
 
 ### Milestone 4C – Component Heartbeat
 
-**Status:** Not Started
+**Status:** Completed
 
 **Deliverables:**
-- [ ] Implement periodic heartbeat reporting from Camera Acquisition.
-- [ ] Receive and process heartbeat information in the VISP Server.
-- [ ] Track the operational status of the Camera Acquisition component.
+- [x] Implement periodic heartbeat reporting from Camera Acquisition to the VISP Server.
+- [x] Implement a Server endpoint to receive component heartbeats.
+- [x] Log received heartbeats on the VISP Server.
+
+**Completion Criteria:**
+- [x] Camera Acquisition periodically sends heartbeat requests to the VISP Server.
+- [x] The VISP Server successfully receives heartbeat requests.
+- [x] Heartbeat reporting stops cleanly when Camera Acquisition shuts down.
+- [x] Automated tests pass and the components build successfully.
+- [x] Live integration testing confirms heartbeat requests are received by the VISP Server.
+
+**Implementation Notes:**
+- Camera Acquisition sends a heartbeat every 30 seconds using `POST /api/heartbeat`.
+- The Server logs each received heartbeat.
+- Heartbeat reporting is independent of individual camera connection status.
+- No heartbeat persistence, component registry, or database tracking is currently implemented.
+
+**Outcome:** The VISP Server receives periodic operational heartbeats from Camera Acquisition, providing a basic mechanism for monitoring component availability.
 
 ### Milestone 4D – Individual Camera Health
 
-**Status:** Not Started
+**Status:** Completed
 
 **Deliverables:**
-- [ ] Implement individual camera connection and health reporting.
-- [ ] Report camera connection failures and recovery.
-- [ ] Track individual camera operational status in the VISP Server.
+- [x] Implement individual camera connection and health reporting.
+- [x] Report camera connection failures to the VISP Server.
+- [x] Receive and log individual camera operational status in the VISP Server.
 
 **Completion Criteria:**
-- Camera Acquisition retrieves its configuration from the VISP Server.
-- Active cameras can be connected to and frames can be acquired.
-- Acquired frames and capture metadata can be submitted to the VISP Server.
-- Component heartbeat reporting is operational.
-- Individual camera health is reported to the VISP Server.
-- Automated tests pass and the component builds successfully.
+- [x] Camera Acquisition retrieves its configuration from the VISP Server.
+- [x] Active cameras can be connected to and frames can be acquired.
+- [x] Acquired frames and capture metadata can be submitted to the VISP Server.
+- [x] Component heartbeat reporting is operational.
+- [x] Individual camera health is reported to the VISP Server.
+- [x] Automated tests pass and the component builds successfully.
+
+**Implementation Notes:**
+- Camera Acquisition reports `connected` after successful RTSP playback startup.
+- Unexpected RTSP failures are reported as `disconnected`, including the associated error.
+- The VISP Server receives and logs camera status reports. Persistent status tracking is not implemented.
+- Automatic camera reconnection and recovery are not implemented.
 
 **Outcome:** VISP can connect to registered network cameras, acquire images, submit them to the Server, and report the operational health of the acquisition component and individual cameras.
 

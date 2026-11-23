@@ -3,6 +3,7 @@ package acquisition
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/png"
@@ -256,5 +257,88 @@ func TestSendHeartbeatServerError(t *testing.T) {
 	err := client.SendHeartbeat(context.Background())
 	if err == nil {
 		t.Fatal("expected an error, got nil")
+	}
+}
+
+func TestSendCameraStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected method POST, got %s", r.Method)
+		}
+
+		expectedPath := "/api/cameras/camera-123/status"
+		if r.URL.Path != expectedPath {
+			t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path)
+		}
+
+		if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
+			t.Errorf("expected Content-Type application/json, got %s", contentType)
+		}
+
+		var request cameraStatusRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Errorf("decode request body: %v", err)
+			return
+		}
+
+		if request.Status != "connected" {
+			t.Errorf("expected status connected, got %s", request.Status)
+		}
+
+		if request.Error != "" {
+			t.Errorf("expected no error, got %s", request.Error)
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+
+	if err := client.SendCameraStatus(context.Background(), "camera-123", "connected", nil); err != nil {
+		t.Fatalf("SendCameraStatus returned error: %v", err)
+	}
+}
+
+func TestSendCameraStatusWithError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request cameraStatusRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Errorf("decode request body: %v", err)
+			return
+		}
+
+		if request.Status != "disconnected" {
+			t.Errorf("expected status disconnected, got %s", request.Status)
+		}
+
+		if request.Error != "connection refused" {
+			t.Errorf("expected error connection refused, got %s", request.Error)
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+
+	statusErr := errors.New("connection refused")
+
+	if err := client.SendCameraStatus(context.Background(), "camera-123", "disconnected", statusErr); err != nil {
+		t.Fatalf("SendCameraStatus returned error: %v", err)
+	}
+}
+
+func TestSendCameraStatusServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+
+	err := client.SendCameraStatus(context.Background(), "camera-123", "connected", nil)
+	if err == nil {
+		t.Fatal("expected error when server returns 500")
 	}
 }

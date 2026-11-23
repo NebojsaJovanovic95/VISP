@@ -99,10 +99,83 @@ The Server generates and returns a unique image ID.
 
 The Server returns an appropriate HTTP error status when the request is invalid or cannot be processed.
 
+### POST /api/heartbeat
+
+Reports the operational heartbeat of the Camera Acquisition component to the VISP Server.
+
+**Request**
+
+```http
+POST /api/heartbeat
+```
+
+No request body is required.
+
+Camera Acquisition periodically sends this request to indicate that the component is operational.
+
+**Success Response**
+
+Status: `200 OK`
+
+The Server logs receipt of the heartbeat.
+
+### POST /api/cameras/{camera_id}/status
+
+Reports the connection status of an individual camera to the VISP Server.
+
+**Request**
+
+```http
+POST /api/cameras/camera-uuid/status
+```
+
+Content-Type: `application/json`
+
+**Request Body – Connected**
+
+```json
+{
+  "status": "connected"
+}
+```
+
+**Request Body – Disconnected**
+
+```json
+{
+  "status": "disconnected",
+  "error": "RTSP client stopped: UDP timeout"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `status` | string | Camera connection status: `connected` or `disconnected` |
+| `error` | string | Optional description of the connection failure |
+
+The camera ID is supplied as a URL path parameter.
+
+**Success Response**
+
+Status: `200 OK`
+
+The Server logs the received camera ID, status, and error.
+
+**Validation**
+
+- The request body must contain valid JSON.
+- The status must be either `connected` or `disconnected`.
+
+Invalid JSON or an unsupported status returns `400 Bad Request`.
+
 ## Notes
 
 - Camera Acquisition retrieves camera configurations from the Server.
 - Camera Acquisition submits acquired frames using the camera IDs provided by the Server.
+- Camera Acquisition reports component health through periodic heartbeats.
+- Individual camera connection status is reported separately from component heartbeat reporting.
 - The Server is responsible for assigning image IDs.
 - Each component maintains its own internal data structures. Shared Go packages are not required for API communication.
 - Frame storage currently uses local disk. The storage implementation may change independently of this API contract.
+- Camera status reports are currently logged by the Server and are not persisted in the database.
+- Automatic camera reconnection is not currently implemented.

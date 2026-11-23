@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -154,5 +155,54 @@ func TestHeartbeatHandler(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestCameraStatusHandler(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		wantStatus int
+	}{
+		{
+			name:       "connected",
+			body:       `{"status":"connected"}`,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "disconnected",
+			body:       `{"status":"disconnected","error":"connection refused"}`,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "invalid status",
+			body:       `{"status":"unknown"}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "invalid JSON",
+			body:       `{"status":`,
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := New(nil)
+
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/api/cameras/9e6c6159-76bd-4553-8a49-5b4e1b01061c/status",
+				strings.NewReader(tt.body),
+			)
+
+			rec := httptest.NewRecorder()
+
+			server.Router().ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("expected status %d, got %d", tt.wantStatus, rec.Code)
+			}
+		})
 	}
 }

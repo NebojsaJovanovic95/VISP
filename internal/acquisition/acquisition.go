@@ -16,6 +16,7 @@ type cameraConfigLister interface {
 	ListCameras(context.Context) ([]CameraConfig, error)
 	SubmitFrame(context.Context, frameMetadata, *image.RGBA) (string, error)
 	SendHeartbeat(context.Context) error
+	SendCameraStatus(context.Context, string, string, error) error
 }
 
 // Run starts the Camera Acquisition component.
@@ -120,6 +121,10 @@ func run(
 				}
 
 				fmt.Println()
+
+				if err := client.SendCameraStatus(ctx, cameraConfig.CameraID, status, err); err != nil {
+					fmt.Printf("Report camera status: %v\n", err)
+				}
 			},
 		}
 

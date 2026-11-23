@@ -22,6 +22,11 @@ type CameraConfig struct {
 	AcquisitionIntervalSeconds float64 `json:"acquisition_interval_seconds"`
 }
 
+type cameraStatusRequest struct {
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+}
+
 type frameMetadata struct {
 	CameraID   string    `json:"camera_id"`
 	CapturedAt time.Time `json:"captured_at"`
@@ -159,6 +164,43 @@ func (c *Client) SendHeartbeat(ctx context.Context) error {
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server returned unexpected heartbeat status: %s", resp.Status)
+	}
+
+	return nil
+}
+
+// SendCameraStatus reports an individual camera's connection status.
+func (c *Client) SendCameraStatus(ctx context.Context, cameraID string, status string, statusErr error) error {
+	requestBody := cameraStatusRequest{
+		Status: status,
+	}
+
+	if statusErr != nil {
+		requestBody.Error = statusErr.Error()
+	}
+
+	body, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("encode camera status: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/api/cameras/%s/status", c.baseURL, cameraID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create camera status request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("send camera status: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned unexpected camera status response: %s", resp.Status)
 	}
 
 	return nil

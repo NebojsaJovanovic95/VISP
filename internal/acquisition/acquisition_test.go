@@ -8,11 +8,18 @@ import (
 	"time"
 )
 
+type cameraStatusSubmission struct {
+	CameraID string
+	Status   string
+	Err      error
+}
+
 type cameraConfigListerStub struct {
-	cameras     []CameraConfig
-	err         error
-	submissions []frameSubmission
-	heartbeats  chan struct{}
+	cameras        []CameraConfig
+	err            error
+	submissions    []frameSubmission
+	heartbeats     chan struct{}
+	cameraStatuses []cameraStatusSubmission
 }
 
 func (s *cameraConfigListerStub) ListCameras(context.Context) ([]CameraConfig, error) {
@@ -36,6 +43,21 @@ func (s *cameraConfigListerStub) SendHeartbeat(context.Context) error {
 	if s.heartbeats != nil {
 		s.heartbeats <- struct{}{}
 	}
+	return nil
+}
+
+func (s *cameraConfigListerStub) SendCameraStatus(
+	_ context.Context,
+	cameraID string,
+	status string,
+	err error,
+) error {
+	s.cameraStatuses = append(s.cameraStatuses, cameraStatusSubmission{
+		CameraID: cameraID,
+		Status:   status,
+		Err:      err,
+	})
+
 	return nil
 }
 
@@ -182,5 +204,53 @@ func TestRunHeartbeat(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("heartbeat goroutine did not stop")
+	}
+}
+
+func TestRunCameraStatus(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	expectedErr := errors.New("connection refused")
+
+	client := cameraConfigListerStub{
+		cameras: []CameraConfig{
+			{
+				CameraID:   "test-camera",
+				CameraName: "Test Camera",
+				RTSPURL:    "rtsp://localhost:554/test",
+				Status:     "active",
+			},
+		},
+	}
+
+	err := run(ctx, &client, func(_ context.Context, camera Camera) error {
+		camera.OnStatus("disconnected", expectedErr)
+		cancel()
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("run acquisition: %v", err)
+	}
+
+	if len(client.cameraStatuses) != 1 {
+		t.Fatalf(
+			"expected 1 camera status report, got %d",
+			len(client.cameraStatuses),
+		)
+	}
+
+	report := client.cameraStatuses[0]
+
+	if report.CameraID != "test-camera" {
+		t.Errorf("expected camera ID test-camera, got %s", report.CameraID)
+	}
+
+	if report.Status != "disconnected" {
+		t.Errorf("expected status disconnected, got %s", report.Status)
+	}
+
+	if !errors.Is(report.Err, expectedErr) {
+		t.Errorf("expected error %v, got %v", expectedErr, report.Err)
 	}
 }
