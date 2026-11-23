@@ -2,10 +2,17 @@ package acquisition
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
+	"io"
+	"mime"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestListCameras(t *testing.T) {
@@ -91,6 +98,127 @@ func TestListCamerasInvalidJSON(t *testing.T) {
 	client := NewClient(server.URL)
 
 	_, err := client.ListCameras(context.Background())
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+}
+
+func TestSubmitFrame(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				t.Errorf("expected method %s, got %s", http.MethodPost, r.Method)
+			}
+
+			if r.URL.Path != "/api/frames" {
+				t.Errorf("expected path %q, got %q", "/api/frames", r.URL.Path)
+			}
+
+			mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			if err != nil {
+				t.Fatalf("parse content type: %v", err)
+			}
+
+			if mediaType != "multipart/form-data" {
+				t.Errorf("expected multipart/form-data, got %q", mediaType)
+			}
+
+			if err := r.ParseMultipartForm(10 << 20); err != nil {
+				t.Fatalf("parse multipart form: %v", err)
+			}
+
+			var metadata frameMetadata
+
+			if err := json.NewDecoder(strings.NewReader(r.FormValue("metadata"))).Decode(&metadata); err != nil {
+				t.Fatalf("decode metadata: %v", err)
+			}
+
+			if metadata.CameraID != "test-camera-id" {
+				t.Errorf("expected camera ID %q, got %q", "test-camera-id", metadata.CameraID)
+			}
+
+			imageFile, _, err := r.FormFile("image")
+			if err != nil {
+				t.Fatalf("get image field: %v", err)
+			}
+			defer imageFile.Close()
+
+			decodedImage, err := png.Decode(imageFile)
+			if err != nil {
+				t.Fatalf("decode submitted PNG: %v", err)
+			}
+
+			if decodedImage.Bounds().Dx() != 640 || decodedImage.Bounds().Dy() != 480 {
+				t.Errorf("unexpected image dimensions: %v", decodedImage.Bounds())
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			io.WriteString(w, `{"image_id":"test-image-id"}`)
+		},
+	))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+
+	frame := image.NewRGBA(image.Rect(0, 0, 640, 480))
+	capturedAt := time.Now()
+
+	metadata := frameMetadata{
+		CameraID:   "test-camera-id",
+		CapturedAt: capturedAt,
+	}
+
+	imageID, err := client.SubmitFrame(context.Background(), metadata, frame)
+	if err != nil {
+		t.Fatalf("submit frame: %v", err)
+	}
+
+	if imageID != "test-image-id" {
+		t.Errorf("expected image ID %q, got %q", "test-image-id", imageID)
+	}
+}
+
+func TestSubmitFrameServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		},
+	))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+
+	frame := image.NewRGBA(image.Rect(0, 0, 640, 480))
+	metadata := frameMetadata{
+		CameraID:   "test-camera-id",
+		CapturedAt: time.Now(),
+	}
+
+	_, err := client.SubmitFrame(context.Background(), metadata, frame)
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+}
+
+func TestSubmitFrameInvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprintln(w, "not valid JSON")
+		},
+	))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+
+	frame := image.NewRGBA(image.Rect(0, 0, 640, 480))
+	metadata := frameMetadata{
+		CameraID:   "test-camera-id",
+		CapturedAt: time.Now(),
+	}
+
+	_, err := client.SubmitFrame(context.Background(), metadata, frame)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}

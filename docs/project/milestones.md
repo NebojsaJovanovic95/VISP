@@ -73,22 +73,65 @@ Establish the VISP Server as the central application component responsible for c
 - Server shuts down gracefully on termination signals.
 - Automated tests pass and application builds successfully.
 
-**Outcome:
+**Outcome:** The VISP Server provides the initial application foundation, with centralized configuration, PostgreSQL connectivity, HTTP API routing, health monitoring, request logging, and graceful application shutdown.
 
 ## Milestone 4 – Camera Acquisition
 
+**Status:** In Progress
+
 **Objective:** Implement independent camera connectivity and image acquisition.
 
-Deliverables:
-- Establish the Camera Acquisition Go application.
-- Implement RTSP connections using gortsplib.
-- Implement video decoding and frame extraction.
-- Support per-camera acquisition intervals.
-- Retrieve camera configuration from the VISP Server.
-- Submit acquired frames and capture metadata to the VISP Server.
-- Implement heartbeat and individual camera-status reporting.
+### Milestone 4A – Camera Acquisition
 
-**Outcome:** VISP can connect to registered network cameras and submit acquired images to the Server.
+**Status:** Complete
+
+**Deliverables:**
+- [x] Establish the Camera Acquisition Go application.
+- [x] Implement RTSP connections using gortsplib.
+- [x] Implement video decoding and frame extraction.
+- [x] Support per-camera acquisition intervals.
+- [x] Retrieve camera configuration from the VISP Server.
+
+### Milestone 4B – Frame Submission
+
+**Status:** Complete
+
+**Deliverables:**
+- [x] Implement the Server frame-submission endpoint (`POST /api/frames`).
+- [x] Validate incoming frame metadata and image data.
+- [x] Implement the Acquisition HTTP client for frame submission.
+- [x] Submit acquired frames and capture metadata to the VISP Server.
+- [x] Implement asynchronous frame submission using a worker and channel.
+- [x] Add automated tests for frame submission and error handling.
+- [x] Verify acquisition frame handoff and run the Go race detector.
+
+### Milestone 4C – Component Heartbeat
+
+**Status:** Not Started
+
+**Deliverables:**
+- [ ] Implement periodic heartbeat reporting from Camera Acquisition.
+- [ ] Receive and process heartbeat information in the VISP Server.
+- [ ] Track the operational status of the Camera Acquisition component.
+
+### Milestone 4D – Individual Camera Health
+
+**Status:** Not Started
+
+**Deliverables:**
+- [ ] Implement individual camera connection and health reporting.
+- [ ] Report camera connection failures and recovery.
+- [ ] Track individual camera operational status in the VISP Server.
+
+**Completion Criteria:**
+- Camera Acquisition retrieves its configuration from the VISP Server.
+- Active cameras can be connected to and frames can be acquired.
+- Acquired frames and capture metadata can be submitted to the VISP Server.
+- Component heartbeat reporting is operational.
+- Individual camera health is reported to the VISP Server.
+- Automated tests pass and the component builds successfully.
+
+**Outcome:** VISP can connect to registered network cameras, acquire images, submit them to the Server, and report the operational health of the acquisition component and individual cameras.
 
 ## Milestone 5 – Image Storage
 
