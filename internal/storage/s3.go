@@ -12,21 +12,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-// ObjectStorage defines the operations provided by VISP file storage.
-type ObjectStorage interface {
-	CheckConnection(ctx context.Context) error
-}
-
-// S3Storage implements ObjectStorage using an S3-compatible service.
-type S3Storage struct {
+// Storage manages the connection to S3-compatible object storage.
+type Storage struct {
 	client *s3.Client
 	bucket string
 }
 
-// NewS3Storage initializes an S3-compatible storage client.
-func NewS3Storage(cfg config.ObjectStorageConfig) (*S3Storage, error) {
+// New creates an S3-compatible storage client and verifies connectivity.
+func New(ctx context.Context, cfg config.ObjectStorageConfig) (*Storage, error) {
 	awsCfg, err := awsconfig.LoadDefaultConfig(
-		context.Background(),
+		ctx,
 		awsconfig.WithRegion(cfg.Region),
 		awsconfig.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider(
@@ -45,14 +40,20 @@ func NewS3Storage(cfg config.ObjectStorageConfig) (*S3Storage, error) {
 		options.UsePathStyle = true
 	})
 
-	return &S3Storage{
+	storage := &Storage{
 		client: client,
 		bucket: cfg.Bucket,
-	}, nil
+	}
+
+	if err := storage.CheckConnection(ctx); err != nil {
+		return nil, err
+	}
+
+	return storage, nil
 }
 
 // CheckConnection verifies access to the configured storage bucket.
-func (s *S3Storage) CheckConnection(ctx context.Context) error {
+func (s *Storage) CheckConnection(ctx context.Context) error {
 	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{
 		Bucket: aws.String(s.bucket),
 	})

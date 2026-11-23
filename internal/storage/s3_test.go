@@ -9,7 +9,7 @@ import (
 	"github.com/NebojsaJovanovic95/VISP/internal/config"
 )
 
-func TestS3StorageCheckConnection(t *testing.T) {
+func TestNew(t *testing.T) {
 	tests := []struct {
 		name       string
 		statusCode int
@@ -44,18 +44,16 @@ func TestS3StorageCheckConnection(t *testing.T) {
 			))
 			defer server.Close()
 
-			storage, err := NewS3Storage(config.ObjectStorageConfig{
-				Endpoint:  server.URL,
-				Region:    "us-east-1",
-				Bucket:    "visp",
-				AccessKey: "test-access-key",
-				SecretKey: "test-secret-key",
-			})
-			if err != nil {
-				t.Fatalf("initialize S3 storage: %v", err)
-			}
-
-			err = storage.CheckConnection(context.Background())
+			_, err := New(
+				context.Background(),
+				config.ObjectStorageConfig{
+					Endpoint:  server.URL,
+					Region:    "us-east-1",
+					Bucket:    "visp",
+					AccessKey: "test-access-key",
+					SecretKey: "test-secret-key",
+				},
+			)
 
 			if tt.wantErr && err == nil {
 				t.Fatal("expected connection error, got nil")

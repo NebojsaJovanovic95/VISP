@@ -13,18 +13,21 @@ import (
 
 	"github.com/NebojsaJovanovic95/VISP/internal/config"
 	"github.com/NebojsaJovanovic95/VISP/internal/database"
+	"github.com/NebojsaJovanovic95/VISP/internal/storage"
 )
 
 // Server holds the dependencies required by the VISP HTTP API.
 type Server struct {
 	db       *database.Database
+	storage  storage.ObjectStorage
 	frameDir string
 }
 
 // New creates a Server with its required dependencies.
-func New(db *database.Database) *Server {
+func New(db *database.Database, objectStorage storage.ObjectStorage) *Server {
 	return &Server{
 		db:       db,
+		storage:  objectStorage,
 		frameDir: "data/frames",
 	}
 }
