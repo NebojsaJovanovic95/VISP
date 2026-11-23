@@ -6,3 +6,6 @@
 
 # Env File
 .env
+
+# Data dir
+/data/

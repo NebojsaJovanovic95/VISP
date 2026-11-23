@@ -105,6 +105,8 @@ Establish the VISP Server as the central application component responsible for c
 - [x] Add automated tests for frame submission and error handling.
 - [x] Verify acquisition frame handoff and run the Go race detector.
 
+**Outcome:** Live frame acquisition and submission were successfully verified using a physical network camera.
+
 ### Milestone 4C – Component Heartbeat
 
 **Status:** Not Started
