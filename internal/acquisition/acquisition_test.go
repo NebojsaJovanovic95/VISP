@@ -12,6 +12,7 @@ type cameraConfigListerStub struct {
 	cameras     []CameraConfig
 	err         error
 	submissions []frameSubmission
+	heartbeats  chan struct{}
 }
 
 func (s *cameraConfigListerStub) ListCameras(context.Context) ([]CameraConfig, error) {
@@ -29,6 +30,13 @@ func (s *cameraConfigListerStub) SubmitFrame(
 	})
 
 	return "test-image-id", nil
+}
+
+func (s *cameraConfigListerStub) SendHeartbeat(context.Context) error {
+	if s.heartbeats != nil {
+		s.heartbeats <- struct{}{}
+	}
+	return nil
 }
 
 func TestRun(t *testing.T) {
@@ -141,5 +149,38 @@ func TestRunCameraConnectionError(t *testing.T) {
 
 	if !errors.Is(err, expectedErr) {
 		t.Errorf("expected error %v, got %v", expectedErr, err)
+	}
+}
+
+func TestRunHeartbeat(t *testing.T) {
+	heartbeats := make(chan struct{}, 2)
+	client := &cameraConfigListerStub{
+		heartbeats: heartbeats,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		runHeartbeat(ctx, client, 10*time.Millisecond)
+	}()
+
+	// Verify that two heartbeats are sent.
+	for i := 0; i < 2; i++ {
+		select {
+		case <-heartbeats:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for heartbeat")
+		}
+	}
+
+	cancel()
+
+	// Verify that the heartbeat goroutine exits.
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("heartbeat goroutine did not stop")
 	}
 }

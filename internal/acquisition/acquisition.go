@@ -15,6 +15,7 @@ import (
 type cameraConfigLister interface {
 	ListCameras(context.Context) ([]CameraConfig, error)
 	SubmitFrame(context.Context, frameMetadata, *image.RGBA) (string, error)
+	SendHeartbeat(context.Context) error
 }
 
 // Run starts the Camera Acquisition component.
@@ -63,6 +64,8 @@ func run(
 		)
 		fmt.Printf("URI: %s\n", cameraConfig.RTSPURL)
 	}
+
+	go runHeartbeat(ctx, client, 30*time.Second)
 
 	frames := make(chan frameSubmission, 10)
 	workerDone := make(chan struct{})
@@ -122,4 +125,24 @@ func run(
 	fmt.Println("Camera Acquisition stopped")
 
 	return nil
+}
+
+func runHeartbeat(
+	ctx context.Context,
+	client cameraConfigLister,
+	interval time.Duration,
+) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := client.SendHeartbeat(ctx); err != nil {
+				fmt.Printf("Send heartbeat: %v\n", err)
+			}
+		}
+	}
 }
