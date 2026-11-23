@@ -143,3 +143,16 @@ func TestListCamerasDatabaseError(t *testing.T) {
 			http.StatusInternalServerError, rec.Code)
 	}
 }
+
+func TestHeartbeatHandler(t *testing.T) {
+	server := New(nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/heartbeat", nil)
+	rec := httptest.NewRecorder()
+
+	server.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}

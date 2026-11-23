@@ -223,3 +223,38 @@ func TestSubmitFrameInvalidJSON(t *testing.T) {
 		t.Fatal("expected an error, got nil")
 	}
 }
+
+func TestSendHeartbeat(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected method %s, got %s", http.MethodPost, r.Method)
+		}
+
+		if r.URL.Path != "/api/heartbeat" {
+			t.Errorf("expected path /api/heartbeat, got %s", r.URL.Path)
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+
+	if err := client.SendHeartbeat(context.Background()); err != nil {
+		t.Fatalf("SendHeartbeat returned unexpected error: %v", err)
+	}
+}
+
+func TestSendHeartbeatServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+
+	err := client.SendHeartbeat(context.Background())
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+}

@@ -95,6 +95,7 @@ func (s *Server) Router() *http.ServeMux {
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /api/cameras", s.listCamerasHandler)
 	mux.HandleFunc("POST /api/frames", s.receiveFrameHandler)
+	mux.HandleFunc("POST /api/heartbeat", s.heartbeatHandler)
 	return mux
 }
 
@@ -105,4 +106,11 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write([]byte("OK")); err != nil {
 		return
 	}
+}
+
+// heartbeatHandler handles component heartbeat requests.
+func (s *Server) heartbeatHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("Component heartbeat received at %s\n", time.Now().Format(time.RFC3339))
+
+	w.WriteHeader(http.StatusOK)
 }

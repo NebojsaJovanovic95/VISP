@@ -138,3 +138,28 @@ func (c *Client) SubmitFrame(ctx context.Context, metadata frameMetadata, frame 
 
 	return result.ImageId, nil
 }
+
+// SendHeartbeat reports that the Camera Acquisition component is running.
+func (c *Client) SendHeartbeat(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		c.baseURL+"/api/heartbeat",
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("create heartbeat request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("send heartbeat: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned unexpected heartbeat status: %s", resp.Status)
+	}
+
+	return nil
+}
