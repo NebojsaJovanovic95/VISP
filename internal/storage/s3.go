@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/NebojsaJovanovic95/VISP/internal/config"
 
@@ -62,4 +63,31 @@ func (s *Storage) CheckConnection(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// Upload stores an object and returns its object key as the reference.
+func (s *Storage) Upload(
+	ctx context.Context,
+	key string,
+	body io.Reader,
+	contentLength int64,
+	contentType string,
+) (string, error) {
+	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:        aws.String(s.bucket),
+		Key:           aws.String(key),
+		Body:          body,
+		ContentLength: aws.Int64(contentLength),
+		ContentType:   aws.String(contentType),
+	})
+	if err != nil {
+		return "", fmt.Errorf(
+			"upload object %q to S3 bucket %q: %w",
+			key,
+			s.bucket,
+			err,
+		)
+	}
+
+	return key, nil
 }

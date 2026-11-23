@@ -162,19 +162,19 @@ Establish the VISP Server as the central application component responsible for c
 **Objective:** Implement image storage and retrieval using S3-compatible object storage.
 
 ### Milestone 5A – Object Storage Integration
-**Status:** Not Started
+**Status:** Completed
 
-- [ ] Establish the object storage service for local development.
-- [ ] Configure the VISP Server to connect to the object storage service.
-- [ ] Implement object storage client initialization and connection management.
-- [ ] Verify that the VISP Server can successfully communicate with object storage.
+- [x] Establish the object storage service for local development.
+- [x] Configure the VISP Server to connect to the object storage service.
+- [x] Implement object storage client initialization and connection management.
+- [x] Verify that the VISP Server can successfully communicate with object storage.
 
 ### Milestone 5B – Image Upload
-**Status:** Not Started
+**Status:** Completed
 
-- [ ] Implement image upload to object storage.
-- [ ] Implement object-reference management.
-- [ ] Integrate image uploads into the existing frame submission workflow.
+- [x] Implement image upload to object storage.
+- [x] Implement object-reference management.
+- [x] Integrate image uploads into the existing frame submission workflow.
 
 ### Milestone 5C – Image Metadata
 **Status:** Not Started

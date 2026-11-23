@@ -2,24 +2,72 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/NebojsaJovanovic95/VISP/internal/config"
+	"github.com/NebojsaJovanovic95/VISP/internal/storage"
 )
 
 func TestReceiveFrameHandler(t *testing.T) {
-	frameDir := t.TempDir()
+	var uploadedPath string
+	var uploadedContentType string
+	var uploadedImage []byte
+
+	s3Server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodHead:
+				if r.URL.Path != "/visp" {
+					t.Errorf("expected bucket path %q, got %q", "/visp", r.URL.Path)
+				}
+				w.WriteHeader(http.StatusOK)
+
+			case http.MethodPut:
+				uploadedPath = r.URL.Path
+				uploadedContentType = r.Header.Get("Content-Type")
+
+				var err error
+				uploadedImage, err = io.ReadAll(r.Body)
+				if err != nil {
+					t.Errorf("read uploaded image: %v", err)
+				}
+
+				w.WriteHeader(http.StatusOK)
+
+			default:
+				t.Errorf("unexpected HTTP method: %s", r.Method)
+				w.WriteHeader(http.StatusMethodNotAllowed)
+			}
+		},
+	))
+	defer s3Server.Close()
+
+	objectStorage, err := storage.New(
+		context.Background(),
+		config.ObjectStorageConfig{
+			Endpoint:  s3Server.URL,
+			Region:    "us-east-1",
+			Bucket:    "visp",
+			AccessKey: "test-access-key",
+			SecretKey: "test-secret-key",
+		},
+	)
+	if err != nil {
+		t.Fatalf("initialize storage: %v", err)
+	}
 
 	server := &Server{
-		frameDir: frameDir,
+		storage: objectStorage,
 	}
 
 	var body bytes.Buffer
@@ -59,7 +107,6 @@ func TestReceiveFrameHandler(t *testing.T) {
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	rec := httptest.NewRecorder()
-
 	server.Router().ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusCreated {
@@ -79,29 +126,31 @@ func TestReceiveFrameHandler(t *testing.T) {
 		t.Fatal("expected image_id in response")
 	}
 
-	filename := filepath.Join(frameDir, "frame-"+response.ImageID+".png")
+	expectedKey := "frames/" + response.ImageID + ".png"
 
-	savedImage, err := os.Open(filename)
-	if err != nil {
-		t.Fatalf("open saved image: %v", err)
-	}
-	defer savedImage.Close()
-
-	config, err := png.DecodeConfig(savedImage)
-	if err != nil {
-		t.Fatalf("decode saved PNG: %v", err)
+	if uploadedPath != "/visp/"+expectedKey {
+		t.Errorf("expected uploaded path %q, got %q",
+			"/visp/"+expectedKey, uploadedPath)
 	}
 
-	if config.Width != 2 || config.Height != 2 {
+	if uploadedContentType != "image/png" {
+		t.Errorf("expected content type %q, got %q",
+			"image/png", uploadedContentType)
+	}
+
+	imageConfig, err := png.DecodeConfig(bytes.NewReader(uploadedImage))
+	if err != nil {
+		t.Fatalf("decode uploaded PNG: %v", err)
+	}
+
+	if imageConfig.Width != 2 || imageConfig.Height != 2 {
 		t.Errorf("expected image dimensions 2x2, got %dx%d",
-			config.Width, config.Height)
+			imageConfig.Width, imageConfig.Height)
 	}
 }
 
 func TestReceiveFrameHandlerInvalidMultipart(t *testing.T) {
-	server := &Server{
-		frameDir: t.TempDir(),
-	}
+	server := &Server{}
 
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -148,9 +197,7 @@ func TestReceiveFrameHandlerInvalidMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := &Server{
-				frameDir: t.TempDir(),
-			}
+			server := &Server{}
 
 			var body bytes.Buffer
 			writer := multipart.NewWriter(&body)
@@ -187,9 +234,7 @@ func TestReceiveFrameHandlerInvalidMetadata(t *testing.T) {
 }
 
 func TestReceiveFrameHandlerMissingImage(t *testing.T) {
-	server := &Server{
-		frameDir: t.TempDir(),
-	}
+	server := &Server{}
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
@@ -225,9 +270,7 @@ func TestReceiveFrameHandlerMissingImage(t *testing.T) {
 }
 
 func TestReceiveFrameHandlerInvalidImage(t *testing.T) {
-	server := &Server{
-		frameDir: t.TempDir(),
-	}
+	server := &Server{}
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
@@ -268,14 +311,5 @@ func TestReceiveFrameHandlerInvalidImage(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d: %s",
 			http.StatusBadRequest, rec.Code, rec.Body.String())
-	}
-
-	entries, err := os.ReadDir(server.frameDir)
-	if err != nil {
-		t.Fatalf("read frame directory: %v", err)
-	}
-
-	if len(entries) != 0 {
-		t.Errorf("expected no saved files, got %d", len(entries))
 	}
 }

@@ -7,10 +7,10 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const maxFrameSize = 50 << 20 // 50 MiB
@@ -49,18 +49,7 @@ func (s *Server) receiveFrameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// exists, err := s.db.CameraExists(r.Context(), metadata.CameraID)
-	// if err != nil {
-	// 	http.Error(w, "failed to verify camera", http.StatusInternalServerError)
-	// 	return
-	// }
-	//
-	// if !exists {
-	// 	http.Error(w, "camera not found", http.StatusNotFound)
-	// 	return
-	// }
-
-	imageFile, _, err := r.FormFile("image")
+	imageFile, imageHeader, err := r.FormFile("image")
 	if err != nil {
 		http.Error(w, "image file is required", http.StatusBadRequest)
 		return
@@ -85,38 +74,28 @@ func (s *Server) receiveFrameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := os.MkdirAll(s.frameDir, 0755); err != nil {
-		http.Error(w, "failed to prepare image storage", http.StatusInternalServerError)
-		return
-	}
+	imageID := uuid.NewString()
+	objectKey := "frames/" + imageID + ".png"
 
-	dst, err := os.CreateTemp(s.frameDir, "frame-*.png")
+	imageReference, err := s.storage.Upload(
+		r.Context(),
+		objectKey,
+		imageFile,
+		imageHeader.Size,
+		"image/png",
+	)
 	if err != nil {
-		http.Error(w, "failed to create image file", http.StatusInternalServerError)
-		return
-	}
-
-	filename := filepath.Base(dst.Name())
-	imageID := strings.TrimSuffix(strings.TrimPrefix(filename, "frame-"), ".png")
-
-	if _, err := io.Copy(dst, imageFile); err != nil {
-		dst.Close()
-		os.Remove(dst.Name())
-		http.Error(w, "failed to save image", http.StatusInternalServerError)
-		return
-	}
-
-	if err := dst.Close(); err != nil {
-		os.Remove(dst.Name())
+		log.Printf("Failed to upload frame %s: %v", imageID, err)
 		http.Error(w, "failed to save image", http.StatusInternalServerError)
 		return
 	}
 
 	log.Printf(
-		"Received frame: camera_id=%s captured_at=%s image=%s",
+		"Received frame: camera_id=%s captured_at=%s image_id=%s image_reference=%s",
 		metadata.CameraID,
 		metadata.CapturedAt.Format(time.RFC3339Nano),
-		filename,
+		imageID,
+		imageReference,
 	)
 
 	w.Header().Set("Content-Type", "application/json")

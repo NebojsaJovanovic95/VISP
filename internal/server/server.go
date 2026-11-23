@@ -18,17 +18,15 @@ import (
 
 // Server holds the dependencies required by the VISP HTTP API.
 type Server struct {
-	db       *database.Database
-	storage  *storage.Storage
-	frameDir string
+	db      *database.Database
+	storage *storage.Storage
 }
 
 // New creates a Server with its required dependencies.
 func New(db *database.Database, objectStorage *storage.Storage) *Server {
 	return &Server{
-		db:       db,
-		storage:  objectStorage,
-		frameDir: "data/frames",
+		db:      db,
+		storage: objectStorage,
 	}
 }
 
