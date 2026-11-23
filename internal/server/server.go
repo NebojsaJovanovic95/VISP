@@ -19,12 +19,12 @@ import (
 // Server holds the dependencies required by the VISP HTTP API.
 type Server struct {
 	db       *database.Database
-	storage  storage.ObjectStorage
+	storage  *storage.Storage
 	frameDir string
 }
 
 // New creates a Server with its required dependencies.
-func New(db *database.Database, objectStorage storage.ObjectStorage) *Server {
+func New(db *database.Database, objectStorage *storage.Storage) *Server {
 	return &Server{
 		db:       db,
 		storage:  objectStorage,
@@ -52,7 +52,12 @@ func Run() error {
 	}
 	defer db.Close()
 
-	server := New(db)
+	storage, err := storage.New(ctx, cfg.ObjectStorage)
+	if err != nil {
+		return fmt.Errorf("initialize storage: %w", err)
+	}
+
+	server := New(db, storage)
 
 	httpServer := &http.Server{
 		Addr:    cfg.Address,
