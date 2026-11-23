@@ -106,6 +106,7 @@ Establish the VISP Server as the central application component responsible for c
 - [x] Verify acquisition frame handoff and run the Go race detector.
 
 **Outcome:** Live frame acquisition and submission were successfully verified using a physical network camera.
+**Live Integration Verification:** Successfully tested frame acquisition and submission using a physical RTSP camera. Camera Acquisition retrieved the camera configuration, acquired frames at the configured five-second interval, and submitted them to the VISP Server, which acknowledged submissions with HTTP 201 Created.
 
 ### Milestone 4C – Component Heartbeat
 
