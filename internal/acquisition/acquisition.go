@@ -112,6 +112,15 @@ func run(
 					return
 				}
 			},
+			OnStatus: func(status string, err error) {
+				fmt.Printf("Camera %s status: %s", cameraConfig.CameraName, status)
+
+				if err != nil {
+					fmt.Printf(" (%v)", err)
+				}
+
+				fmt.Println()
+			},
 		}
 
 		if err := connectCamera(ctx, camera); err != nil {

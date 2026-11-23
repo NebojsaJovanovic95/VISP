@@ -19,13 +19,26 @@ type Camera struct {
 	URL                 string
 	AcquisitionInterval time.Duration
 	OnFrame             func(*image.RGBA, time.Time)
+	OnStatus            func(status string, err error)
 }
 
 // Connect establishes an RTSP connection and receives the camera stream.
-func (c *Camera) Connect(ctx context.Context) error {
+func (c *Camera) Connect(ctx context.Context) (retErr error) {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+
+	reportStatus := func(status string, err error) {
+		if c.OnStatus != nil {
+			c.OnStatus(status, err)
+		}
+	}
+
+	defer func() {
+		if retErr != nil && ctx.Err() == nil {
+			reportStatus("disconnected", retErr)
+		}
+	}()
 
 	u, err := base.ParseURL(c.URL)
 	if err != nil {
@@ -104,12 +117,15 @@ func (c *Camera) Connect(ctx context.Context) error {
 		return fmt.Errorf("start RTSP playback: %w", err)
 	}
 
+	reportStatus("connected", nil)
 	log.Println("Receiving H.265 stream")
 
 	err = client.Wait()
+
 	if ctx.Err() != nil {
 		return nil
 	}
+
 	if err != nil {
 		return fmt.Errorf("RTSP client stopped: %w", err)
 	}
