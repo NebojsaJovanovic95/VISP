@@ -161,12 +161,41 @@ Establish the VISP Server as the central application component responsible for c
 
 **Objective:** Implement image storage and retrieval using S3-compatible object storage.
 
-Deliverables:
-- Establish the object storage integration.
-- Implement image upload and object-reference management.
-- Persist image metadata in PostgreSQL.
-- Implement image retrieval through the VISP Server.
-- Establish the initial image-saving and retention behaviour.
+### Milestone 5A – Object Storage Integration
+**Status:** Not Started
+
+- [ ] Establish the object storage service for local development.
+- [ ] Configure the VISP Server to connect to the object storage service.
+- [ ] Implement object storage client initialization and connection management.
+- [ ] Verify that the VISP Server can successfully communicate with object storage.
+
+### Milestone 5B – Image Upload
+**Status:** Not Started
+
+- [ ] Implement image upload to object storage.
+- [ ] Implement object-reference management.
+- [ ] Integrate image uploads into the existing frame submission workflow.
+
+### Milestone 5C – Image Metadata
+**Status:** Not Started
+
+- [ ] Implement persistence of image metadata in PostgreSQL.
+- [ ] Associate stored image references with their corresponding metadata.
+- [ ] Verify that image metadata and object references are correctly persisted.
+
+### Milestone 5D – Image Retrieval
+**Status:** Not Started
+
+- [ ] Implement image retrieval from object storage through the VISP Server.
+- [ ] Provide an interface for retrieving stored images.
+- [ ] Verify that stored images can be retrieved using their references.
+
+### Milestone 5E – Image Retention
+**Status:** Not Started
+
+- [ ] Establish the initial image-saving behaviour.
+- [ ] Define and implement the initial image retention behaviour.
+- [ ] Verify that image storage and retention behave as expected.
 
 **Outcome:** Acquired images can be stored, referenced, and retrieved through the platform.
 

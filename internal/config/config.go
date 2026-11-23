@@ -8,8 +8,9 @@ import (
 
 // ServerConfig holds configuration required by the VISP Server.
 type ServerConfig struct {
-	Address  string
-	Database DatabaseConfig
+	Address       string
+	Database      DatabaseConfig
+	ObjectStorage ObjectStorageConfig
 }
 
 // AcquisitionConfig holds configuration required by Camera Acquisition.
@@ -27,11 +28,21 @@ type DatabaseConfig struct {
 	SSLMode  string
 }
 
+// ObjectStorageConfig holds S3-compatible object storage settings.
+type ObjectStorageConfig struct {
+	Endpoint  string
+	Region    string
+	Bucket    string
+	AccessKey string
+	SecretKey string
+}
+
 // rawConfig holds the complete application configuration internally.
 type rawConfig struct {
 	ServerAddress string
 	ServerURL     string
 	Database      DatabaseConfig
+	ObjectStorage ObjectStorageConfig
 }
 
 // load reads the complete application configuration from environment variables.
@@ -47,6 +58,13 @@ func load() *rawConfig {
 			Password: os.Getenv("POSTGRES_PASSWORD"),
 			SSLMode:  os.Getenv("POSTGRES_SSLMODE"),
 		},
+		ObjectStorage: ObjectStorageConfig{
+			Endpoint:  os.Getenv("S3_ENDPOINT"),
+			Region:    os.Getenv("S3_REGION"),
+			Bucket:    os.Getenv("S3_BUCKET"),
+			AccessKey: os.Getenv("S3_ACCESS_KEY"),
+			SecretKey: os.Getenv("S3_SECRET_KEY"),
+		},
 	}
 }
 
@@ -58,9 +76,14 @@ func LoadServer() (*ServerConfig, error) {
 		return nil, err
 	}
 
+	if err := validateObjectStorage(cfg.ObjectStorage); err != nil {
+		return nil, err
+	}
+
 	return &ServerConfig{
-		Address:  cfg.ServerAddress,
-		Database: cfg.Database,
+		Address:       cfg.ServerAddress,
+		Database:      cfg.Database,
+		ObjectStorage: cfg.ObjectStorage,
 	}, nil
 }
 
@@ -87,6 +110,24 @@ func validateDatabase(cfg DatabaseConfig) error {
 		cfg.Password == "" ||
 		cfg.SSLMode == "" {
 		return fmt.Errorf("missing required PostgreSQL environment variables")
+	}
+
+	return nil
+}
+
+func validateObjectStorage(cfg ObjectStorageConfig) error {
+	if cfg.Endpoint == "" ||
+		cfg.Region == "" ||
+		cfg.Bucket == "" ||
+		cfg.AccessKey == "" ||
+		cfg.SecretKey == "" {
+		return fmt.Errorf("missing required S3 object storage environment variables")
+	}
+
+	endpoint, err := url.ParseRequestURI(cfg.Endpoint)
+	if err != nil || endpoint.Host == "" ||
+		(endpoint.Scheme != "http" && endpoint.Scheme != "https") {
+		return fmt.Errorf("invalid S3_ENDPOINT: %q", cfg.Endpoint)
 	}
 
 	return nil
