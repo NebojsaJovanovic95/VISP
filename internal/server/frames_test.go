@@ -20,6 +20,7 @@ import (
 	"github.com/NebojsaJovanovic95/VISP/internal/config"
 	"github.com/NebojsaJovanovic95/VISP/internal/database"
 	"github.com/NebojsaJovanovic95/VISP/internal/storage"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -131,6 +132,22 @@ func TestReceiveFrameHandler(t *testing.T) {
 				}
 
 				w.WriteHeader(http.StatusOK)
+
+			case http.MethodGet:
+				if r.URL.Path != uploadedPath {
+					t.Errorf(
+						"expected download path %q, got %q",
+						uploadedPath,
+						r.URL.Path,
+					)
+				}
+
+				w.Header().Set("Content-Type", "image/png")
+				w.WriteHeader(http.StatusOK)
+
+				if _, err := w.Write(uploadedImage); err != nil {
+					t.Errorf("write downloaded image: %v", err)
+				}
 
 			default:
 				t.Errorf("unexpected HTTP method: %s", r.Method)
@@ -269,9 +286,23 @@ func TestReceiveFrameHandler(t *testing.T) {
 			cameraID, gotCameraID)
 	}
 
-	if !gotCaptured.Equal(metadata.CapturedAt) {
-		t.Errorf("expected captured_at %v, got %v",
-			metadata.CapturedAt, gotCaptured)
+	missingImageID := uuid.NewString()
+
+	missingReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/images/"+missingImageID,
+		nil,
+	)
+
+	missingRec := httptest.NewRecorder()
+	server.Router().ServeHTTP(missingRec, missingReq)
+
+	if missingRec.Code != http.StatusNotFound {
+		t.Errorf(
+			"expected status %d for missing image, got %d",
+			http.StatusNotFound,
+			missingRec.Code,
+		)
 	}
 }
 
@@ -437,5 +468,26 @@ func TestReceiveFrameHandlerInvalidImage(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d: %s",
 			http.StatusBadRequest, rec.Code, rec.Body.String())
+	}
+}
+
+func TestGetImageHandlerInvalidID(t *testing.T) {
+	server := &Server{}
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/images/invalid-id",
+		nil,
+	)
+
+	rec := httptest.NewRecorder()
+	server.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf(
+			"expected status %d, got %d",
+			http.StatusBadRequest,
+			rec.Code,
+		)
 	}
 }

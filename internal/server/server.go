@@ -104,6 +104,7 @@ func (s *Server) Router() *http.ServeMux {
 	mux.HandleFunc("POST /api/frames", s.receiveFrameHandler)
 	mux.HandleFunc("POST /api/heartbeat", s.heartbeatHandler)
 	mux.HandleFunc("POST /api/cameras/{camera_id}/status", s.cameraStatusHandler)
+	mux.HandleFunc("GET /api/images/{image_id}", s.getImageHandler)
 	return mux
 }
 

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 const maxFrameSize = 50 << 20 // 50 MiB
@@ -116,5 +117,53 @@ func (s *Server) receiveFrameHandler(w http.ResponseWriter, r *http.Request) {
 		"image_id": imageID,
 	}); err != nil {
 		log.Printf("Encode frame response: %v", fmt.Errorf("%w", err))
+	}
+}
+
+// getImageHandler retrieves a stored image by its ID.
+func (s *Server) getImageHandler(w http.ResponseWriter, r *http.Request) {
+	imageID := r.PathValue("image_id")
+
+	if _, err := uuid.Parse(imageID); err != nil {
+		http.Error(w, "invalid image ID", http.StatusBadRequest)
+		return
+	}
+
+	image, err := s.db.GetImage(r.Context(), imageID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			http.Error(w, "image not found", http.StatusNotFound)
+			return
+		}
+
+		log.Printf("Failed to retrieve image metadata %s: %v", imageID, err)
+		http.Error(w, "failed to retrieve image", http.StatusInternalServerError)
+		return
+	}
+
+	body, err := s.storage.Download(r.Context(), image.ImageReference)
+	if err != nil {
+		log.Printf("Failed to download image %s: %v", imageID, err)
+		http.Error(w, "failed to retrieve image", http.StatusInternalServerError)
+		return
+	}
+	defer body.Close()
+
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	written, err := io.Copy(w, body)
+	if err != nil {
+		log.Printf(
+			"Failed to stream image %s after writing %d bytes: %v",
+			imageID,
+			written,
+			err,
+		)
+
+		if written == 0 {
+			http.Error(w, "failed to retrieve image", http.StatusInternalServerError)
+		}
+		return
 	}
 }

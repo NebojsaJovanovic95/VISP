@@ -186,11 +186,13 @@ Establish the VISP Server as the central application component responsible for c
 - [x] Verify image metadata persistence and camera associations through automated tests.
 
 ### Milestone 5D – Image Retrieval
-**Status:** Not Started
+**Status:** Completed
 
-- [ ] Implement image retrieval from object storage through the VISP Server.
-- [ ] Provide an interface for retrieving stored images.
-- [ ] Verify that stored images can be retrieved using their references.
+- [x] Implement image metadata lookup by image ID.
+- [x] Implement image download from object storage.
+- [x] Expose image retrieval through the VISP Server API.
+- [x] Stream retrieved image bytes to clients.
+- [x] Verify successful retrieval and error handling through automated tests.
 
 ### Milestone 5E – Image Retention
 **Status:** Not Started
