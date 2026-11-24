@@ -112,3 +112,21 @@ func (s *Storage) Download(
 
 	return result.Body, nil
 }
+
+// Delete removes an object from storage.
+func (s *Storage) Delete(ctx context.Context, key string) error {
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return fmt.Errorf(
+			"delete object %q from S3 bucket %q: %w",
+			key,
+			s.bucket,
+			err,
+		)
+	}
+
+	return nil
+}

@@ -1,4 +1,4 @@
-.PHONY: build test coverage fmt vet run-server
+.PHONY: build test coverage fmt vet run-server test-storage-integration
 
 build:
 	mkdir -p bin
@@ -12,6 +12,9 @@ run-server:
 run-acquisition:
 	go build -o bin/camera-acquisition ./cmd/camera-acquisition
 	./bin/camera-acquisition
+
+test-storage-integration:
+	@set -a; . ./.env; set +a; VISP_S3_INTEGRATION_TEST=1 go test ./internal/storage -run TestS3Integration -v
 
 migrate-up:
 	@set -a; . ./.env; set +a; goose -dir migrations postgres "postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@$${POSTGRES_HOST}:$${POSTGRES_PORT}/$${POSTGRES_DB}?sslmode=$${POSTGRES_SSLMODE}" up
