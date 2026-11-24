@@ -26,6 +26,15 @@ type CameraConfig struct {
 	AcquisitionIntervalSeconds float64
 }
 
+// Image represents a stored image and its associated metadata.
+type Image struct {
+	ImageID        string
+	ImageReference string
+	CameraID       string
+	CameraSnapshot []byte
+	CapturedAt     time.Time
+}
+
 // New creates a database connection pool and verifies connectivity.
 func New(ctx context.Context, cfg config.DatabaseConfig) (*Database, error) {
 	connURL := url.URL{
@@ -160,4 +169,31 @@ func (db *Database) CreateImage(
 	}
 
 	return nil
+}
+
+// GetImage retrieves an image record by its ID.
+func (db *Database) GetImage(ctx context.Context, imageID string) (Image, error) {
+	var image Image
+
+	err := db.pool.QueryRow(ctx, `
+		SELECT
+			image_id::text,
+			image_reference,
+			camera_id::text,
+			camera_snapshot,
+			captured_at
+		FROM images
+		WHERE image_id = $1;
+	`, imageID).Scan(
+		&image.ImageID,
+		&image.ImageReference,
+		&image.CameraID,
+		&image.CameraSnapshot,
+		&image.CapturedAt,
+	)
+	if err != nil {
+		return Image{}, fmt.Errorf("get image %q: %w", imageID, err)
+	}
+
+	return image, nil
 }

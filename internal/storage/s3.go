@@ -91,3 +91,24 @@ func (s *Storage) Upload(
 
 	return key, nil
 }
+
+// Download retrieves an object from storage and returns its contents.
+func (s *Storage) Download(
+	ctx context.Context,
+	key string,
+) (io.ReadCloser, error) {
+	result, err := s.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf(
+			"download object %q from S3 bucket %q: %w",
+			key,
+			s.bucket,
+			err,
+		)
+	}
+
+	return result.Body, nil
+}

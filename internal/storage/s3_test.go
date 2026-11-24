@@ -181,3 +181,118 @@ func TestUpload(t *testing.T) {
 		})
 	}
 }
+
+func TestDownload(t *testing.T) {
+	const (
+		bucket    = "visp"
+		objectKey = "frames/test-image.png"
+		imageData = "png-data"
+	)
+
+	tests := []struct {
+		name       string
+		statusCode int
+		wantErr    bool
+	}{
+		{
+			name:       "successful download",
+			statusCode: http.StatusOK,
+			wantErr:    false,
+		},
+		{
+			name:       "failed download",
+			statusCode: http.StatusForbidden,
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(
+				func(w http.ResponseWriter, r *http.Request) {
+					switch r.Method {
+					case http.MethodHead:
+						if r.URL.Path != "/"+bucket {
+							t.Errorf(
+								"expected bucket path %q, got %q",
+								"/"+bucket,
+								r.URL.Path,
+							)
+						}
+
+						w.WriteHeader(http.StatusOK)
+
+					case http.MethodGet:
+						if r.URL.Path != "/"+bucket+"/"+objectKey {
+							t.Errorf(
+								"expected object path %q, got %q",
+								"/"+bucket+"/"+objectKey,
+								r.URL.Path,
+							)
+						}
+
+						w.WriteHeader(tt.statusCode)
+
+						if tt.statusCode == http.StatusOK {
+							_, err := w.Write([]byte(imageData))
+							if err != nil {
+								t.Errorf("write download response: %v", err)
+							}
+						}
+
+					default:
+						t.Errorf("unexpected HTTP method %s", r.Method)
+						w.WriteHeader(http.StatusMethodNotAllowed)
+					}
+				},
+			))
+			defer server.Close()
+
+			storage, err := New(
+				context.Background(),
+				config.ObjectStorageConfig{
+					Endpoint:  server.URL,
+					Region:    "us-east-1",
+					Bucket:    bucket,
+					AccessKey: "test-access-key",
+					SecretKey: "test-secret-key",
+				},
+			)
+			if err != nil {
+				t.Fatalf("initialize storage: %v", err)
+			}
+
+			body, err := storage.Download(context.Background(), objectKey)
+
+			if tt.wantErr {
+				if err == nil {
+					if body != nil {
+						body.Close()
+					}
+					t.Fatal("expected download error, got nil")
+				}
+
+				if body != nil {
+					body.Close()
+					t.Fatal("expected nil body on failure")
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected download error: %v", err)
+			}
+			defer body.Close()
+
+			got, err := io.ReadAll(body)
+			if err != nil {
+				t.Fatalf("read downloaded image: %v", err)
+			}
+
+			if string(got) != imageData {
+				t.Errorf("expected body %q, got %q", imageData, string(got))
+			}
+		})
+	}
+}
