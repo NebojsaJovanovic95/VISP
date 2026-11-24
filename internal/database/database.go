@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"time"
 
 	"github.com/NebojsaJovanovic95/VISP/internal/config"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -118,4 +119,45 @@ func (db *Database) CameraExists(ctx context.Context, cameraID string) (bool, er
 	}
 
 	return exists, nil
+}
+
+// CreateImage persists an image record and snapshots its camera configuration.
+func (db *Database) CreateImage(
+	ctx context.Context,
+	imageID string,
+	imageReference string,
+	cameraID string,
+	capturedAt time.Time,
+) error {
+	result, err := db.pool.Exec(ctx, `
+		INSERT INTO images (
+			image_id,
+			image_reference,
+			camera_id,
+			camera_snapshot,
+			captured_at
+		)
+		SELECT
+			$1,
+			$2,
+			c.camera_id,
+			to_jsonb(c),
+			$4
+		FROM cameras AS c
+		WHERE c.camera_id = $3;
+	`,
+		imageID,
+		imageReference,
+		cameraID,
+		capturedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("create image record: %w", err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("camera %q does not exist", cameraID)
+	}
+
+	return nil
 }

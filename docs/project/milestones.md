@@ -177,11 +177,13 @@ Establish the VISP Server as the central application component responsible for c
 - [x] Integrate image uploads into the existing frame submission workflow.
 
 ### Milestone 5C – Image Metadata
-**Status:** Not Started
+**Status:** Completed
 
-- [ ] Implement persistence of image metadata in PostgreSQL.
-- [ ] Associate stored image references with their corresponding metadata.
-- [ ] Verify that image metadata and object references are correctly persisted.
+- [x] Implement image metadata persistence in PostgreSQL.
+- [x] Associate image records with their originating cameras.
+- [x] Capture camera configuration snapshots at image capture time.
+- [x] Store object references alongside image metadata.
+- [x] Verify image metadata persistence and camera associations through automated tests.
 
 ### Milestone 5D – Image Retrieval
 **Status:** Not Started

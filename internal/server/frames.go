@@ -90,6 +90,17 @@ func (s *Server) receiveFrameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := s.db.CreateImage(
+		r.Context(),
+		imageID,
+		imageReference,
+		metadata.CameraID,
+		metadata.CapturedAt,
+	); err != nil {
+		log.Printf("Failed to create image record %s: %v", imageID, err)
+		http.Error(w, "failed to save image metadata", http.StatusInternalServerError)
+		return
+	}
 	log.Printf(
 		"Received frame: camera_id=%s captured_at=%s image_id=%s image_reference=%s",
 		metadata.CameraID,

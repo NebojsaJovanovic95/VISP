@@ -2,12 +2,14 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/NebojsaJovanovic95/VISP/internal/config"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -551,4 +553,162 @@ func TestCameraExists(t *testing.T) {
 			t.Error("expected camera not to exist")
 		}
 	})
+}
+
+func TestCreateImage(t *testing.T) {
+	if os.Getenv("POSTGRES_PASSWORD") == "" {
+		t.Skip("PostgreSQL environment variables are not configured")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cfg, err := config.LoadServer()
+	if err != nil {
+		t.Fatalf("load configuration: %v", err)
+	}
+
+	db, err := New(ctx, cfg.Database)
+	if err != nil {
+		t.Fatalf("connect to PostgreSQL: %v", err)
+	}
+	defer db.Close()
+
+	var cameraID string
+
+	err = db.pool.QueryRow(ctx, `
+		INSERT INTO cameras (
+			camera_name,
+			rtsp_url,
+			location,
+			status,
+			acquisition_interval
+		)
+		VALUES ($1, $2, $3, $4, INTERVAL '5 seconds')
+		RETURNING camera_id::text
+	`,
+		"CreateImage Test",
+		"rtsp://localhost/test",
+		"Test Location",
+		"active",
+	).Scan(&cameraID)
+	if err != nil {
+		t.Fatalf("insert test camera: %v", err)
+	}
+
+	imageID := uuid.NewString()
+	imageReference := "frames/" + imageID + ".png"
+	capturedAt := time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC)
+
+	defer func() {
+		_, err := db.pool.Exec(ctx,
+			`DELETE FROM images WHERE image_id = $1`,
+			imageID,
+		)
+		if err != nil {
+			t.Errorf("delete test image: %v", err)
+		}
+
+		_, err = db.pool.Exec(ctx,
+			`DELETE FROM cameras WHERE camera_id = $1`,
+			cameraID,
+		)
+		if err != nil {
+			t.Errorf("delete test camera: %v", err)
+		}
+	}()
+
+	err = db.CreateImage(ctx, imageID, imageReference, cameraID, capturedAt)
+	if err != nil {
+		t.Fatalf("create image: %v", err)
+	}
+
+	var (
+		gotReference string
+		gotCameraID  string
+		gotSnapshot  []byte
+		gotCaptured  time.Time
+	)
+
+	err = db.pool.QueryRow(ctx, `
+		SELECT
+			image_reference,
+			camera_id::text,
+			camera_snapshot,
+			captured_at
+		FROM images
+		WHERE image_id = $1
+	`, imageID).Scan(
+		&gotReference,
+		&gotCameraID,
+		&gotSnapshot,
+		&gotCaptured,
+	)
+	if err != nil {
+		t.Fatalf("query created image: %v", err)
+	}
+
+	if gotReference != imageReference {
+		t.Errorf("expected image reference %q, got %q", imageReference, gotReference)
+	}
+
+	if gotCameraID != cameraID {
+		t.Errorf("expected camera ID %q, got %q", cameraID, gotCameraID)
+	}
+
+	if !gotCaptured.Equal(capturedAt) {
+		t.Errorf("expected captured_at %v, got %v", capturedAt, gotCaptured)
+	}
+
+	var snapshot map[string]any
+	if err := json.Unmarshal(gotSnapshot, &snapshot); err != nil {
+		t.Fatalf("decode camera snapshot: %v", err)
+	}
+
+	expectedSnapshot := map[string]string{
+		"camera_name": "CreateImage Test",
+		"rtsp_url":    "rtsp://localhost/test",
+		"location":    "Test Location",
+		"status":      "active",
+	}
+
+	for key, expected := range expectedSnapshot {
+		if snapshot[key] != expected {
+			t.Errorf("expected snapshot %s=%q, got %v", key, expected, snapshot[key])
+		}
+	}
+}
+
+func TestCreateImageRequiresExistingCamera(t *testing.T) {
+	if os.Getenv("POSTGRES_PASSWORD") == "" {
+		t.Skip("PostgreSQL environment variables are not configured")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cfg, err := config.LoadServer()
+	if err != nil {
+		t.Fatalf("load configuration: %v", err)
+	}
+
+	db, err := New(ctx, cfg.Database)
+	if err != nil {
+		t.Fatalf("connect to PostgreSQL: %v", err)
+	}
+	defer db.Close()
+
+	imageID := uuid.NewString()
+	cameraID := uuid.NewString()
+
+	err = db.CreateImage(
+		ctx,
+		imageID,
+		"frames/"+imageID+".png",
+		cameraID,
+		time.Now(),
+	)
+	if err == nil {
+		t.Fatal("expected an error for a nonexistent camera")
+	}
 }
