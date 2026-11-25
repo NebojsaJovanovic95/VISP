@@ -4,13 +4,16 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"time"
 )
 
 // ServerConfig holds configuration required by the VISP Server.
 type ServerConfig struct {
-	Address       string
-	Database      DatabaseConfig
-	ObjectStorage ObjectStorageConfig
+	Address                     string
+	Database                    DatabaseConfig
+	ObjectStorage               ObjectStorageConfig
+	ImageRetentionPeriod        time.Duration
+	ImageRetentionCheckInterval time.Duration
 }
 
 // AcquisitionConfig holds configuration required by Camera Acquisition.
@@ -39,17 +42,21 @@ type ObjectStorageConfig struct {
 
 // rawConfig holds the complete application configuration internally.
 type rawConfig struct {
-	ServerAddress string
-	ServerURL     string
-	Database      DatabaseConfig
-	ObjectStorage ObjectStorageConfig
+	ServerAddress               string
+	ServerURL                   string
+	Database                    DatabaseConfig
+	ObjectStorage               ObjectStorageConfig
+	ImageRetentionPeriod        string
+	ImageRetentionCheckInterval string
 }
 
 // load reads the complete application configuration from environment variables.
 func load() *rawConfig {
 	return &rawConfig{
-		ServerAddress: getEnv("VISP_SERVER_ADDRESS", ":8080"),
-		ServerURL:     getEnv("VISP_SERVER_URL", "http://localhost:8080"),
+		ServerAddress:               getEnv("VISP_SERVER_ADDRESS", ":8080"),
+		ServerURL:                   getEnv("VISP_SERVER_URL", "http://localhost:8080"),
+		ImageRetentionPeriod:        getEnv("IMAGE_RETENTION_PERIOD", "168h"),
+		ImageRetentionCheckInterval: getEnv("IMAGE_RETENTION_CHECK_INTERVAL", "1h"),
 		Database: DatabaseConfig{
 			Host:     os.Getenv("POSTGRES_HOST"),
 			Port:     os.Getenv("POSTGRES_PORT"),
@@ -80,10 +87,28 @@ func LoadServer() (*ServerConfig, error) {
 		return nil, err
 	}
 
+	retentionPeriod, err := time.ParseDuration(cfg.ImageRetentionPeriod)
+	if err != nil {
+		return nil, fmt.Errorf("invalid IMAGE_RETENTION_PERIOD: %w", err)
+	}
+	if retentionPeriod <= 0 {
+		return nil, fmt.Errorf("IMAGE_RETENTION_PERIOD must be positive")
+	}
+
+	retentionCheckInterval, err := time.ParseDuration(cfg.ImageRetentionCheckInterval)
+	if err != nil {
+		return nil, fmt.Errorf("invalid IMAGE_RETENTION_CHECK_INTERVAL: %w", err)
+	}
+	if retentionCheckInterval <= 0 {
+		return nil, fmt.Errorf("IMAGE_RETENTION_CHECK_INTERVAL must be positive")
+	}
+
 	return &ServerConfig{
-		Address:       cfg.ServerAddress,
-		Database:      cfg.Database,
-		ObjectStorage: cfg.ObjectStorage,
+		Address:                     cfg.ServerAddress,
+		Database:                    cfg.Database,
+		ObjectStorage:               cfg.ObjectStorage,
+		ImageRetentionPeriod:        retentionPeriod,
+		ImageRetentionCheckInterval: retentionCheckInterval,
 	}, nil
 }
 

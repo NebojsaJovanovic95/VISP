@@ -1,11 +1,47 @@
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+func setDatabaseEnv(t *testing.T) {
+	t.Helper()
+
+	t.Setenv("POSTGRES_HOST", "localhost")
+	t.Setenv("POSTGRES_PORT", "5432")
+	t.Setenv("POSTGRES_DB", "visp")
+	t.Setenv("POSTGRES_USER", "visp")
+	t.Setenv("POSTGRES_PASSWORD", "test-password")
+	t.Setenv("POSTGRES_SSLMODE", "disable")
+}
+
+func setObjectStorageEnv(t *testing.T) {
+	t.Helper()
+
+	t.Setenv("S3_ENDPOINT", "http://localhost:9000")
+	t.Setenv("S3_REGION", "us-east-1")
+	t.Setenv("S3_BUCKET", "visp")
+	t.Setenv("S3_ACCESS_KEY", "test-access-key")
+	t.Setenv("S3_SECRET_KEY", "test-secret-key")
+}
+
+func clearObjectStorageEnv(t *testing.T) {
+	t.Helper()
+
+	t.Setenv("S3_ENDPOINT", "")
+	t.Setenv("S3_REGION", "")
+	t.Setenv("S3_BUCKET", "")
+	t.Setenv("S3_ACCESS_KEY", "")
+	t.Setenv("S3_SECRET_KEY", "")
+}
 
 func TestLoadServerDefaults(t *testing.T) {
 	setDatabaseEnv(t)
 	setObjectStorageEnv(t)
 	t.Setenv("VISP_SERVER_ADDRESS", "")
+	t.Setenv("IMAGE_RETENTION_PERIOD", "")
+	t.Setenv("IMAGE_RETENTION_CHECK_INTERVAL", "")
 
 	cfg, err := LoadServer()
 	if err != nil {
@@ -14,6 +50,16 @@ func TestLoadServerDefaults(t *testing.T) {
 
 	if cfg.Address != ":8080" {
 		t.Errorf("expected server address %q, got %q", ":8080", cfg.Address)
+	}
+
+	if cfg.ImageRetentionPeriod != 168*time.Hour {
+		t.Errorf("expected retention period %v, got %v",
+			168*time.Hour, cfg.ImageRetentionPeriod)
+	}
+
+	if cfg.ImageRetentionCheckInterval != time.Hour {
+		t.Errorf("expected check interval %v, got %v",
+			time.Hour, cfg.ImageRetentionCheckInterval)
 	}
 }
 
@@ -66,6 +112,7 @@ func TestLoadServerObjectStorage(t *testing.T) {
 
 func TestLoadServerMissingObjectStorageConfig(t *testing.T) {
 	setDatabaseEnv(t)
+	clearObjectStorageEnv(t)
 
 	_, err := LoadServer()
 	if err == nil {
@@ -148,23 +195,80 @@ func TestLoadAcquisitionDoesNotRequireDatabase(t *testing.T) {
 	}
 }
 
-func setDatabaseEnv(t *testing.T) {
-	t.Helper()
+func TestLoadServerCustomRetentionConfig(t *testing.T) {
+	setDatabaseEnv(t)
+	setObjectStorageEnv(t)
 
-	t.Setenv("POSTGRES_HOST", "localhost")
-	t.Setenv("POSTGRES_PORT", "5432")
-	t.Setenv("POSTGRES_DB", "visp")
-	t.Setenv("POSTGRES_USER", "visp")
-	t.Setenv("POSTGRES_PASSWORD", "test-password")
-	t.Setenv("POSTGRES_SSLMODE", "disable")
+	t.Setenv("IMAGE_RETENTION_PERIOD", "72h")
+	t.Setenv("IMAGE_RETENTION_CHECK_INTERVAL", "30m")
+
+	cfg, err := LoadServer()
+	if err != nil {
+		t.Fatalf("load server configuration: %v", err)
+	}
+
+	if cfg.ImageRetentionPeriod != 72*time.Hour {
+		t.Errorf("expected retention period %v, got %v",
+			72*time.Hour, cfg.ImageRetentionPeriod)
+	}
+
+	if cfg.ImageRetentionCheckInterval != 30*time.Minute {
+		t.Errorf("expected check interval %v, got %v",
+			30*time.Minute, cfg.ImageRetentionCheckInterval)
+	}
 }
 
-func setObjectStorageEnv(t *testing.T) {
-	t.Helper()
+func TestLoadServerInvalidRetentionConfig(t *testing.T) {
+	tests := []struct {
+		name  string
+		env   string
+		value string
+	}{
+		{
+			name:  "invalid retention period",
+			env:   "IMAGE_RETENTION_PERIOD",
+			value: "invalid",
+		},
+		{
+			name:  "zero retention period",
+			env:   "IMAGE_RETENTION_PERIOD",
+			value: "0s",
+		},
+		{
+			name:  "negative retention period",
+			env:   "IMAGE_RETENTION_PERIOD",
+			value: "-1h",
+		},
+		{
+			name:  "invalid check interval",
+			env:   "IMAGE_RETENTION_CHECK_INTERVAL",
+			value: "invalid",
+		},
+		{
+			name:  "zero check interval",
+			env:   "IMAGE_RETENTION_CHECK_INTERVAL",
+			value: "0s",
+		},
+		{
+			name:  "negative check interval",
+			env:   "IMAGE_RETENTION_CHECK_INTERVAL",
+			value: "-1m",
+		},
+	}
 
-	t.Setenv("S3_ENDPOINT", "http://localhost:9000")
-	t.Setenv("S3_REGION", "us-east-1")
-	t.Setenv("S3_BUCKET", "visp")
-	t.Setenv("S3_ACCESS_KEY", "test-access-key")
-	t.Setenv("S3_SECRET_KEY", "test-secret-key")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setDatabaseEnv(t)
+			setObjectStorageEnv(t)
+
+			t.Setenv("IMAGE_RETENTION_PERIOD", "168h")
+			t.Setenv("IMAGE_RETENTION_CHECK_INTERVAL", "1h")
+			t.Setenv(tt.env, tt.value)
+
+			_, err := LoadServer()
+			if err == nil {
+				t.Fatal("expected configuration error, got nil")
+			}
+		})
+	}
 }
