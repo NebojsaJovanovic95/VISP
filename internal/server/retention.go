@@ -37,3 +37,26 @@ func (s *Server) RunImageRetention(ctx context.Context) error {
 
 	return nil
 }
+
+// RunImageRetentionScheduler periodically removes expired image files.
+func (s *Server) RunImageRetentionScheduler(ctx context.Context) {
+	ticker := time.NewTicker(s.imageRetentionCheckInterval)
+	defer ticker.Stop()
+
+	// Run once at startup.
+	if err := s.RunImageRetention(ctx); err != nil {
+		log.Printf("image retention failed: %v", err)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case <-ticker.C:
+			if err := s.RunImageRetention(ctx); err != nil {
+				log.Printf("image retention failed: %v", err)
+			}
+		}
+	}
+}

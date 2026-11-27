@@ -251,4 +251,109 @@ func TestRunImageRetention(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("scheduler runs periodically and stops on cancellation", func(t *testing.T) {
+		// Create an image that is initially too recent for retention.
+		key := "frames/retention-scheduler.png"
+
+		var imageID string
+
+		err := testPool.QueryRow(ctx, `
+			INSERT INTO images (
+				image_reference,
+				camera_id,
+				camera_snapshot,
+				captured_at
+			)
+			VALUES ($1, $2, '{}'::jsonb, $3)
+			RETURNING image_id::text
+		`,
+			key,
+			cameraID,
+			time.Now().UTC(),
+		).Scan(&imageID)
+		if err != nil {
+			t.Fatalf("insert scheduler test image: %v", err)
+		}
+
+		objects[key] = true
+
+		schedulerCtx, stopScheduler := context.WithCancel(ctx)
+		done := make(chan struct{})
+
+		// Use a short interval so the test doesn't have to wait an hour.
+		scheduler := New(db, objectStorage, 24*time.Hour, 100*time.Millisecond)
+
+		go func() {
+			defer close(done)
+			scheduler.RunImageRetentionScheduler(schedulerCtx)
+		}()
+
+		// Allow the scheduler's initial retention run to complete.
+		time.Sleep(25 * time.Millisecond)
+
+		var available bool
+
+		err = testPool.QueryRow(ctx, `
+			SELECT file_available
+			FROM images
+			WHERE image_id = $1
+		`, imageID).Scan(&available)
+		if err != nil {
+			stopScheduler()
+			<-done
+			t.Fatalf("check initial image availability: %v", err)
+		}
+
+		if !available {
+			stopScheduler()
+			<-done
+			t.Fatal("scheduler deleted an image before it expired")
+		}
+
+		// Make the image old enough for retention.
+		_, err = testPool.Exec(ctx, `
+			UPDATE images
+			SET captured_at = $1
+			WHERE image_id = $2
+		`, time.Now().UTC().Add(-48*time.Hour), imageID)
+		if err != nil {
+			stopScheduler()
+			<-done
+			t.Fatalf("expire scheduler test image: %v", err)
+		}
+
+		// Wait for the next scheduled retention run.
+		deadline := time.Now().Add(2 * time.Second)
+
+		for time.Now().Before(deadline) {
+			err = testPool.QueryRow(ctx, `
+				SELECT file_available
+				FROM images
+				WHERE image_id = $1
+			`, imageID).Scan(&available)
+			if err != nil {
+				stopScheduler()
+				<-done
+				t.Fatalf("check scheduled retention result: %v", err)
+			}
+
+			if !available {
+				break
+			}
+
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		stopScheduler()
+		<-done
+
+		if available {
+			t.Fatal("scheduler did not delete the expired image")
+		}
+
+		if objects[key] {
+			t.Error("expected expired image file to be deleted from storage")
+		}
+	})
 }

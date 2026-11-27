@@ -61,6 +61,8 @@ func Run() error {
 
 	server := New(db, storage, cfg.ImageRetentionPeriod, cfg.ImageRetentionCheckInterval)
 
+	go server.RunImageRetentionScheduler(ctx)
+
 	httpServer := &http.Server{
 		Addr:    cfg.Address,
 		Handler: loggingMiddleware(server.Router()),

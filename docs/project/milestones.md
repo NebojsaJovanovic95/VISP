@@ -195,13 +195,13 @@ Establish the VISP Server as the central application component responsible for c
 - [x] Verify successful retrieval and error handling through automated tests.
 
 ### Milestone 5E – Image Retention
-**Status:** Not Started
+**Status:** Completed
 
-- [ ] Establish the initial image-saving behaviour.
-- [ ] Define and implement the initial image retention behaviour.
-- [ ] Verify that image storage and retention behave as expected.
+- [x] Establish the initial image-saving behaviour.
+- [x] Define and implement the initial image retention behaviour.
+- [x] Verify that image storage and retention behave as expected.
 
-**Outcome:** Acquired images can be stored, referenced, and retrieved through the platform.
+**Outcome:** The platform stores and retrieves acquired images, and automatically removes expired image files while retaining their associated metadata.
 
 ## Milestone 6 – Inference Workflow and Messaging
 
