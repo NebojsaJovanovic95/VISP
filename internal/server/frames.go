@@ -141,6 +141,11 @@ func (s *Server) getImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !image.FileAvailable {
+		http.Error(w, "image file is no longer availabel", http.StatusGone)
+		return
+	}
+
 	body, err := s.storage.Download(r.Context(), image.ImageReference)
 	if err != nil {
 		log.Printf("Failed to download image %s: %v", imageID, err)

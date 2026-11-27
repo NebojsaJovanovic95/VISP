@@ -33,6 +33,7 @@ type Image struct {
 	CameraID       string
 	CameraSnapshot []byte
 	CapturedAt     time.Time
+	FileAvailable  bool
 }
 
 // New creates a database connection pool and verifies connectivity.
@@ -181,7 +182,8 @@ func (db *Database) GetImage(ctx context.Context, imageID string) (Image, error)
 			image_reference,
 			camera_id::text,
 			camera_snapshot,
-			captured_at
+			captured_at,
+			file_available
 		FROM images
 		WHERE image_id = $1;
 	`, imageID).Scan(
@@ -190,10 +192,76 @@ func (db *Database) GetImage(ctx context.Context, imageID string) (Image, error)
 		&image.CameraID,
 		&image.CameraSnapshot,
 		&image.CapturedAt,
+		&image.FileAvailable,
 	)
 	if err != nil {
 		return Image{}, fmt.Errorf("get image %q: %w", imageID, err)
 	}
 
 	return image, nil
+}
+
+func (d *Database) MarkImageUnavailable(
+	ctx context.Context,
+	imageID string,
+) error {
+	_, err := d.pool.Exec(ctx, `
+		UPDATE images
+		SET file_available = FALSE
+		WHERE image_id = $1
+	`, imageID)
+	if err != nil {
+		return fmt.Errorf("mark image unavailable: %w", err)
+	}
+
+	return nil
+}
+
+// ListImagesEligibleForRetention retrieves available images captured before the cutoff.
+func (d *Database) ListImagesEligibleForRetention(
+	ctx context.Context,
+	cutoff time.Time,
+) ([]Image, error) {
+	rows, err := d.pool.Query(ctx, `
+		SELECT
+			image_id::text,
+			image_reference,
+			camera_id::text,
+			camera_snapshot,
+			captured_at,
+			file_available
+		FROM images
+		WHERE captured_at < $1
+		  AND file_available = TRUE
+		ORDER BY captured_at;
+	`, cutoff)
+	if err != nil {
+		return nil, fmt.Errorf("query images eligible for retention: %w", err)
+	}
+	defer rows.Close()
+
+	images := []Image{}
+
+	for rows.Next() {
+		var image Image
+
+		if err := rows.Scan(
+			&image.ImageID,
+			&image.ImageReference,
+			&image.CameraID,
+			&image.CameraSnapshot,
+			&image.CapturedAt,
+			&image.FileAvailable,
+		); err != nil {
+			return nil, fmt.Errorf("scan image eligible for retention: %w", err)
+		}
+
+		images = append(images, image)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate images eligible for retention: %w", err)
+	}
+
+	return images, nil
 }

@@ -18,15 +18,19 @@ import (
 
 // Server holds the dependencies required by the VISP HTTP API.
 type Server struct {
-	db      *database.Database
-	storage *storage.Storage
+	db                          *database.Database
+	storage                     *storage.Storage
+	imageRetentionPeriod        time.Duration
+	imageRetentionCheckInterval time.Duration
 }
 
 // New creates a Server with its required dependencies.
-func New(db *database.Database, objectStorage *storage.Storage) *Server {
+func New(db *database.Database, objectStorage *storage.Storage, retentionPerod time.Duration, retentionCheckInterval time.Duration) *Server {
 	return &Server{
-		db:      db,
-		storage: objectStorage,
+		db:                          db,
+		storage:                     objectStorage,
+		imageRetentionPeriod:        retentionPerod,
+		imageRetentionCheckInterval: retentionCheckInterval,
 	}
 }
 
@@ -55,7 +59,7 @@ func Run() error {
 		return fmt.Errorf("initialize storage: %w", err)
 	}
 
-	server := New(db, storage)
+	server := New(db, storage, cfg.ImageRetentionPeriod, cfg.ImageRetentionCheckInterval)
 
 	httpServer := &http.Server{
 		Addr:    cfg.Address,

@@ -258,19 +258,21 @@ func TestReceiveFrameHandler(t *testing.T) {
 
 	// Verify that the image metadata was persisted in PostgreSQL.
 	var (
-		gotReference string
-		gotCameraID  string
-		gotCaptured  time.Time
+		gotReference     string
+		gotCameraID      string
+		gotCaptured      time.Time
+		gotFileAvailable bool
 	)
 
 	err = testPool.QueryRow(ctx, `
-		SELECT image_reference, camera_id::text, captured_at
+		SELECT image_reference, camera_id::text, captured_at, file_available
 		FROM images
 		WHERE image_id = $1
 	`, response.ImageID).Scan(
 		&gotReference,
 		&gotCameraID,
 		&gotCaptured,
+		&gotFileAvailable,
 	)
 	if err != nil {
 		t.Fatalf("query persisted image: %v", err)
@@ -284,6 +286,60 @@ func TestReceiveFrameHandler(t *testing.T) {
 	if gotCameraID != cameraID {
 		t.Errorf("expected camera ID %q, got %q",
 			cameraID, gotCameraID)
+	}
+
+	if !gotFileAvailable {
+		t.Error("expected image file to be available after upload")
+	}
+
+	// Verify that the image can be retrieved.
+	imageReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/images/"+response.ImageID,
+		nil,
+	)
+
+	imageRec := httptest.NewRecorder()
+	server.Router().ServeHTTP(imageRec, imageReq)
+
+	if imageRec.Code != http.StatusOK {
+		t.Fatalf("expected status %d when retrieving image, got %d: %s",
+			http.StatusOK, imageRec.Code, imageRec.Body.String())
+	}
+
+	if got := imageRec.Header().Get("Content-Type"); got != "image/png" {
+		t.Errorf("expected content type %q, got %q", "image/png", got)
+	}
+
+	if !bytes.Equal(imageRec.Body.Bytes(), uploadedImage) {
+		t.Error("retrieved image does not match uploaded image")
+	}
+
+	// Mark the physical image as unavailable while retaining its metadata.
+	commandTag, err := testPool.Exec(ctx, `
+		UPDATE images
+		SET file_available = FALSE
+		WHERE image_id = $1
+	`, response.ImageID)
+	if err != nil {
+		t.Fatalf("mark image unavailable: %v", err)
+	}
+	if commandTag.RowsAffected() != 1 {
+		t.Fatalf("expected to update one image, updated %d", commandTag.RowsAffected())
+	}
+
+	unavailableReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/images/"+response.ImageID,
+		nil,
+	)
+
+	unavailableRec := httptest.NewRecorder()
+	server.Router().ServeHTTP(unavailableRec, unavailableReq)
+
+	if unavailableRec.Code != http.StatusGone {
+		t.Errorf("expected status %d for unavailable image, got %d: %s",
+			http.StatusGone, unavailableRec.Code, unavailableRec.Body.String())
 	}
 
 	missingImageID := uuid.NewString()

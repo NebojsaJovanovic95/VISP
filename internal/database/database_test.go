@@ -60,7 +60,7 @@ func createTestInferenceResult(t *testing.T, ctx context.Context, tx pgx.Tx) str
 
 	err := tx.QueryRow(ctx, `
         INSERT INTO cameras (camera_name, rtsp_url, status, acquisition_interval)
-        VALUES ('Test Camera', 'rtsp://localhost/test', 'active', 5)
+        VALUES ('Test Camera', 'rtsp://localhost/test', 'active', INTERVAL '5 seconds')
         RETURNING camera_id
     `).Scan(&cameraID)
 	if err != nil {
@@ -208,8 +208,8 @@ func TestCameraSubscriptionMustBeUnique(t *testing.T) {
             INSERT INTO cameras (
                 camera_id, camera_name, rtsp_url, status, acquisition_interval
             )
-            VALUES ($1, $2, $3, $4, $5)
-        `, cameraID, "Test Camera", "rtsp://localhost/test", "active", 5)
+            VALUES ($1, $2, $3, $4, INTERVAL '5 seconds')
+        `, cameraID, "Test Camera", "rtsp://localhost/test", "active")
 		if err != nil {
 			t.Fatalf("insert test camera: %v", err)
 		}
@@ -292,8 +292,8 @@ func TestCameraAcquisitionIntervalMustBePositive(t *testing.T) {
                 status,
                 acquisition_interval
             )
-            VALUES ($1, $2, $3, $4)
-        `, "Test Camera", "rtsp://localhost/test", "active", 0)
+            VALUES ($1, $2, $3, INTERVAL '0 seconds')
+        `, "Test Camera", "rtsp://localhost/test", "active")
 
 		if err == nil {
 			t.Fatal("expected check constraint violation, got nil")
@@ -511,48 +511,42 @@ func TestCameraExists(t *testing.T) {
 	}
 	defer db.Close()
 
-	withTransaction(t, db, func(ctx context.Context, tx pgx.Tx) {
-		var cameraID string
-
-		err := tx.QueryRow(ctx, `
-			INSERT INTO cameras (
-				camera_name,
-				rtsp_url,
-				status,
-				acquisition_interval
-			)
-			VALUES ($1, $2, $3, INTERVAL '5 seconds')
-			RETURNING camera_id::text
-		`,
-			"CameraExists Test",
-			"rtsp://localhost/test",
-			"active",
-		).Scan(&cameraID)
-		if err != nil {
-			t.Fatalf("insert test camera: %v", err)
-		}
-
-		exists, err := db.CameraExists(ctx, cameraID)
-		if err != nil {
-			t.Fatalf("check existing camera: %v", err)
-		}
-
-		if !exists {
-			t.Error("expected camera to exist")
-		}
-
-		exists, err = db.CameraExists(
-			ctx,
-			"00000000-0000-0000-0000-000000000001",
+	var cameraID string
+	err = db.pool.QueryRow(ctx, `
+		INSERT INTO cameras (
+			camera_name,
+			rtsp_url,
+			status,
+			acquisition_interval
 		)
-		if err != nil {
-			t.Fatalf("check nonexistent camera: %v", err)
-		}
+		VALUES ($1, $2, $3, INTERVAL '5 seconds')
+		RETURNING camera_id::text
+	`, "CameraExists Test", "rtsp://localhost/test", "active").Scan(&cameraID)
+	if err != nil {
+		t.Fatalf("insert test camera: %v", err)
+	}
 
-		if exists {
-			t.Error("expected camera not to exist")
+	defer func() {
+		if _, err := db.pool.Exec(ctx, `DELETE FROM cameras WHERE camera_id = $1`, cameraID); err != nil {
+			t.Errorf("delete test camera: %v", err)
 		}
-	})
+	}()
+
+	exists, err := db.CameraExists(ctx, cameraID)
+	if err != nil {
+		t.Fatalf("check existing camera: %v", err)
+	}
+	if !exists {
+		t.Error("expected camera to exist")
+	}
+
+	exists, err = db.CameraExists(ctx, "00000000-0000-0000-0000-000000000001")
+	if err != nil {
+		t.Fatalf("check nonexistent camera: %v", err)
+	}
+	if exists {
+		t.Error("expected camera not to exist")
+	}
 }
 
 func TestCreateImage(t *testing.T) {
@@ -624,10 +618,11 @@ func TestCreateImage(t *testing.T) {
 	}
 
 	var (
-		gotReference string
-		gotCameraID  string
-		gotSnapshot  []byte
-		gotCaptured  time.Time
+		gotReference     string
+		gotCameraID      string
+		gotSnapshot      []byte
+		gotCaptured      time.Time
+		gotFileAvailable bool
 	)
 
 	err = db.pool.QueryRow(ctx, `
@@ -635,7 +630,8 @@ func TestCreateImage(t *testing.T) {
 			image_reference,
 			camera_id::text,
 			camera_snapshot,
-			captured_at
+			captured_at,
+			file_available
 		FROM images
 		WHERE image_id = $1
 	`, imageID).Scan(
@@ -643,6 +639,7 @@ func TestCreateImage(t *testing.T) {
 		&gotCameraID,
 		&gotSnapshot,
 		&gotCaptured,
+		&gotFileAvailable,
 	)
 	if err != nil {
 		t.Fatalf("query created image: %v", err)
@@ -658,6 +655,10 @@ func TestCreateImage(t *testing.T) {
 
 	if !gotCaptured.Equal(capturedAt) {
 		t.Errorf("expected captured_at %v, got %v", capturedAt, gotCaptured)
+	}
+
+	if !gotFileAvailable {
+		t.Error("expected file_available to default to true")
 	}
 
 	var snapshot map[string]any
@@ -802,6 +803,10 @@ func TestGetImage(t *testing.T) {
 		t.Errorf("expected camera ID %q, got %q", cameraID, image.CameraID)
 	}
 
+	if !image.FileAvailable {
+		t.Error("expected image file to be available after creation")
+	}
+
 	if !image.CapturedAt.Equal(capturedAt) {
 		t.Errorf("expected captured_at %v, got %v", capturedAt, image.CapturedAt)
 	}
@@ -840,5 +845,232 @@ func TestGetImageNotFound(t *testing.T) {
 	_, err = db.GetImage(ctx, imageID)
 	if !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("expected pgx.ErrNoRows, got %v", err)
+	}
+}
+
+func TestMarkImageUnavailable(t *testing.T) {
+	if os.Getenv("POSTGRES_PASSWORD") == "" {
+		t.Skip("PostgreSQL environment variables are not configured")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cfg, err := config.LoadServer()
+	if err != nil {
+		t.Fatalf("load configuration: %v", err)
+	}
+
+	db, err := New(ctx, cfg.Database)
+	if err != nil {
+		t.Fatalf("connect to PostgreSQL: %v", err)
+	}
+	defer db.Close()
+
+	var cameraID string
+
+	err = db.pool.QueryRow(ctx, `
+		INSERT INTO cameras (
+			camera_name,
+			rtsp_url,
+			location,
+			status,
+			acquisition_interval
+		)
+		VALUES ($1, $2, $3, $4, INTERVAL '5 seconds')
+		RETURNING camera_id::text
+	`,
+		"MarkImageUnavailable Test",
+		"rtsp://localhost/test",
+		"Test Location",
+		"active",
+	).Scan(&cameraID)
+	if err != nil {
+		t.Fatalf("insert test camera: %v", err)
+	}
+
+	imageID := uuid.NewString()
+	imageReference := "frames/" + imageID + ".png"
+	capturedAt := time.Date(2026, 11, 25, 12, 0, 0, 0, time.UTC)
+
+	defer func() {
+		_, err := db.pool.Exec(ctx,
+			`DELETE FROM images WHERE image_id = $1`,
+			imageID,
+		)
+		if err != nil {
+			t.Errorf("delete test image: %v", err)
+		}
+
+		_, err = db.pool.Exec(ctx,
+			`DELETE FROM cameras WHERE camera_id = $1`,
+			cameraID,
+		)
+		if err != nil {
+			t.Errorf("delete test camera: %v", err)
+		}
+	}()
+
+	err = db.CreateImage(ctx, imageID, imageReference, cameraID, capturedAt)
+	if err != nil {
+		t.Fatalf("create image: %v", err)
+	}
+
+	err = db.MarkImageUnavailable(ctx, imageID)
+	if err != nil {
+		t.Fatalf("mark image unavailable: %v", err)
+	}
+
+	image, err := db.GetImage(ctx, imageID)
+	if err != nil {
+		t.Fatalf("get image: %v", err)
+	}
+
+	if image.FileAvailable {
+		t.Error("expected image file to be unavailable")
+	}
+
+	if image.ImageID != imageID {
+		t.Errorf("expected image ID %q, got %q", imageID, image.ImageID)
+	}
+
+	if image.ImageReference != imageReference {
+		t.Errorf(
+			"expected image reference %q, got %q",
+			imageReference,
+			image.ImageReference,
+		)
+	}
+
+	if image.CameraID != cameraID {
+		t.Errorf("expected camera ID %q, got %q", cameraID, image.CameraID)
+	}
+
+	if !image.CapturedAt.Equal(capturedAt) {
+		t.Errorf("expected captured_at %v, got %v", capturedAt, image.CapturedAt)
+	}
+}
+
+func TestListImagesEligibleForRetention(t *testing.T) {
+	if os.Getenv("POSTGRES_PASSWORD") == "" {
+		t.Skip("PostgreSQL environment variables are not configured")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cfg, err := config.LoadServer()
+	if err != nil {
+		t.Fatalf("load configuration: %v", err)
+	}
+
+	db, err := New(ctx, cfg.Database)
+	if err != nil {
+		t.Fatalf("connect to PostgreSQL: %v", err)
+	}
+	defer db.Close()
+
+	var cameraID string
+
+	err = db.pool.QueryRow(ctx, `
+		INSERT INTO cameras (
+			camera_name,
+			rtsp_url,
+			location,
+			status,
+			acquisition_interval
+		)
+		VALUES ($1, $2, $3, $4, INTERVAL '5 seconds')
+		RETURNING camera_id::text
+	`,
+		"ListImagesEligibleForRetention Test",
+		"rtsp://localhost/test",
+		"Test Location",
+		"active",
+	).Scan(&cameraID)
+	if err != nil {
+		t.Fatalf("insert test camera: %v", err)
+	}
+
+	cutoff := time.Now().UTC().Add(-24 * time.Hour)
+
+	oldImageID := uuid.NewString()
+	recentImageID := uuid.NewString()
+	unavailableImageID := uuid.NewString()
+
+	defer func() {
+		_, err := db.pool.Exec(ctx, `
+			DELETE FROM images
+			WHERE image_id = ANY($1::uuid[])
+		`, []string{oldImageID, recentImageID, unavailableImageID})
+		if err != nil {
+			t.Errorf("delete test images: %v", err)
+		}
+
+		_, err = db.pool.Exec(ctx,
+			`DELETE FROM cameras WHERE camera_id = $1`,
+			cameraID,
+		)
+		if err != nil {
+			t.Errorf("delete test camera: %v", err)
+		}
+	}()
+
+	tests := []struct {
+		imageID    string
+		capturedAt time.Time
+	}{
+		{oldImageID, cutoff.Add(-time.Hour)},
+		{recentImageID, cutoff.Add(time.Hour)},
+		{unavailableImageID, cutoff.Add(-2 * time.Hour)},
+	}
+
+	for _, test := range tests {
+		err := db.CreateImage(
+			ctx,
+			test.imageID,
+			"frames/"+test.imageID+".png",
+			cameraID,
+			test.capturedAt,
+		)
+		if err != nil {
+			t.Fatalf("create test image %q: %v", test.imageID, err)
+		}
+	}
+
+	err = db.MarkImageUnavailable(ctx, unavailableImageID)
+	if err != nil {
+		t.Fatalf("mark image unavailable: %v", err)
+	}
+
+	images, err := db.ListImagesEligibleForRetention(ctx, cutoff)
+	if err != nil {
+		t.Fatalf("list images eligible for retention: %v", err)
+	}
+
+	if len(images) != 1 {
+		t.Fatalf("expected 1 eligible image, got %d", len(images))
+	}
+
+	image := images[0]
+
+	if image.ImageID != oldImageID {
+		t.Errorf("expected image ID %q, got %q", oldImageID, image.ImageID)
+	}
+
+	if !image.FileAvailable {
+		t.Error("expected eligible image file to be available")
+	}
+
+	if !image.CapturedAt.Equal(cutoff.Add(-time.Hour)) {
+		t.Errorf(
+			"expected captured_at %v, got %v",
+			cutoff.Add(-time.Hour),
+			image.CapturedAt,
+		)
+	}
+
+	if image.ImageReference != "frames/"+oldImageID+".png" {
+		t.Errorf("unexpected image reference: %q", image.ImageReference)
 	}
 }

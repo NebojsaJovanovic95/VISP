@@ -30,7 +30,7 @@ func TestHealthHandler(t *testing.T) {
 }
 
 func TestHealthRoute(t *testing.T) {
-	server := New(nil, nil)
+	server := New(nil, nil, 0, 0)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
@@ -65,7 +65,7 @@ func TestListCamerasRoute(t *testing.T) {
 	}
 	defer db.Close()
 
-	server := New(db, nil)
+	server := New(db, nil, 0, 0)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/cameras", nil)
 	rec := httptest.NewRecorder()
@@ -132,7 +132,7 @@ func TestListCamerasDatabaseError(t *testing.T) {
 	// Close the pool to simulate a database failure. Deliberetly not deffered!
 	db.Close()
 
-	server := New(db, nil)
+	server := New(db, nil, cfg.ImageRetentionPeriod, cfg.ImageRetentionCheckInterval)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/cameras", nil)
 	rec := httptest.NewRecorder()
@@ -146,7 +146,7 @@ func TestListCamerasDatabaseError(t *testing.T) {
 }
 
 func TestHeartbeatHandler(t *testing.T) {
-	server := New(nil, nil)
+	server := New(nil, nil, 0, 0)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/heartbeat", nil)
 	rec := httptest.NewRecorder()
@@ -188,7 +188,7 @@ func TestCameraStatusHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := New(nil, nil)
+			server := New(nil, nil, 0, 0)
 
 			req := httptest.NewRequest(
 				http.MethodPost,

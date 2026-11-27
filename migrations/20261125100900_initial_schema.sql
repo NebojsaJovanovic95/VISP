@@ -6,6 +6,7 @@ CREATE TABLE cameras (
   camera_name TEXT NOT NULL,
   rtsp_url TEXT NOT NULL,
   location TEXT,
+  description TEXT,
   status TEXT NOT NULL,
   acquisition_interval INTERVAL NOT NULL CHECK (acquisition_interval > INTERVAL '0 seconds')
 );
@@ -47,7 +48,8 @@ CREATE TABLE images (
   image_reference TEXT NOT NULL UNIQUE,
   camera_id UUID NOT NULL REFERENCES cameras(camera_id) ON DELETE RESTRICT,
   camera_snapshot JSONB NOT NULL,
-  captured_at TIMESTAMPTZ NOT NULL
+  captured_at TIMESTAMPTZ NOT NULL,
+  file_available BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- Records of inference work submitted for processing.
