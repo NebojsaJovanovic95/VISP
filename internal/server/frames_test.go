@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -107,13 +108,19 @@ func TestReceiveFrameHandler(t *testing.T) {
 		}
 	}()
 
-	var uploadedPath string
-	var uploadedContentType string
-	var uploadedImage []byte
+	// Store objects by their S3 object key.
+	type storedObject struct {
+		contentType string
+		body        []byte
+	}
+
+	objects := make(map[string]storedObject)
 
 	// Simulate the S3-compatible storage service.
 	s3Server := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
+			key := strings.TrimPrefix(r.URL.Path, "/visp/")
+
 			switch r.Method {
 			case http.MethodHead:
 				if r.URL.Path != "/visp" {
@@ -122,32 +129,37 @@ func TestReceiveFrameHandler(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 
 			case http.MethodPut:
-				uploadedPath = r.URL.Path
-				uploadedContentType = r.Header.Get("Content-Type")
-
-				var err error
-				uploadedImage, err = io.ReadAll(r.Body)
+				body, err := io.ReadAll(r.Body)
 				if err != nil {
 					t.Errorf("read uploaded image: %v", err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+
+				objects[key] = storedObject{
+					contentType: r.Header.Get("Content-Type"),
+					body:        body,
 				}
 
 				w.WriteHeader(http.StatusOK)
 
 			case http.MethodGet:
-				if r.URL.Path != uploadedPath {
-					t.Errorf(
-						"expected download path %q, got %q",
-						uploadedPath,
-						r.URL.Path,
-					)
+				object, exists := objects[key]
+				if !exists {
+					w.WriteHeader(http.StatusNotFound)
+					return
 				}
 
-				w.Header().Set("Content-Type", "image/png")
+				w.Header().Set("Content-Type", object.contentType)
 				w.WriteHeader(http.StatusOK)
 
-				if _, err := w.Write(uploadedImage); err != nil {
+				if _, err := w.Write(object.body); err != nil {
 					t.Errorf("write downloaded image: %v", err)
 				}
+
+			case http.MethodDelete:
+				delete(objects, key)
+				w.WriteHeader(http.StatusNoContent)
 
 			default:
 				t.Errorf("unexpected HTTP method: %s", r.Method)
@@ -171,10 +183,12 @@ func TestReceiveFrameHandler(t *testing.T) {
 		t.Fatalf("initialize storage: %v", err)
 	}
 
-	server := &Server{
-		db:      db,
-		storage: objectStorage,
-	}
+	server := New(
+		db,
+		objectStorage,
+		cfg.ImageRetentionPeriod,
+		cfg.ImageRetentionCheckInterval,
+	)
 
 	// Construct the frame submission request.
 	var body bytes.Buffer
@@ -236,15 +250,17 @@ func TestReceiveFrameHandler(t *testing.T) {
 	// Verify the object-storage upload.
 	expectedKey := "frames/" + response.ImageID + ".png"
 
-	if uploadedPath != "/visp/"+expectedKey {
-		t.Errorf("expected uploaded path %q, got %q",
-			"/visp/"+expectedKey, uploadedPath)
+	uploadedObject, exists := objects[expectedKey]
+	if !exists {
+		t.Fatalf("expected object %q to exist in storage", expectedKey)
 	}
 
-	if uploadedContentType != "image/png" {
+	if uploadedObject.contentType != "image/png" {
 		t.Errorf("expected content type %q, got %q",
-			"image/png", uploadedContentType)
+			"image/png", uploadedObject.contentType)
 	}
+
+	uploadedImage := uploadedObject.body
 
 	imageConfig, err := png.DecodeConfig(bytes.NewReader(uploadedImage))
 	if err != nil {
